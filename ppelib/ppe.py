@@ -29,6 +29,14 @@ class PPE:
 
     @staticmethod
     def unpairCantor(z):
+        """
+        Unpair of the Cantar function.
+        Normally for given value it calculates two integer coordinates.
+        Here z can be a single value or an array of values, where each
+        to each value of z the unpair function will be applied
+        :param z: the values to be unpaired
+        :return: a tuple of two values or two arrays of values
+        """
         t = int(math.floor((math.sqrt(8 * z + 1) - 1) / 2))
         x = int(t * (t + 3) / 2 - z)
         y = int(z - t * (t + 1) / 2)
@@ -36,24 +44,32 @@ class PPE:
 
     @staticmethod
     def pairCantor(a, b):
+        """
+        Pairing function using Cantar formula
+        For a given pair of integer values it combines them into a single int value
+        Here a and b can be arrays of two integer where each pair of values a[0] b[0] will be paired using Cantar formula
+        :param a: value or array of values to be one half of pair
+        :param b: value or array of values to be one half of pair
+        :return: bired values
+        """
         return 0.5 * (a + b) * (a + b + 1) + b
 
     def assign_regions(self, X: np.array, pairs: np.array) -> np.array:
         """
         For given samples in X it assignes new samples to one of hte regions
-        :param X:
-        :param pairs:
-        :return:
+        :param X: input data where each row will be assigned to one of existing pairs
+        :param pairs: a list of unique pairs
+        :return: the nearest pair for each row in X
         """
         d = cdist(X, self.proto, metric="sqeuclidean")
-        ds = np.zeros((d.shape[0], len(pairs)))
+        ds = np.zeros((d.shape[0], len(pairs))) #Allocate memory to store the results - distances to prototypes constituting given pair
         i = 0
         for p in pairs:
-            a, b = self.unpairCantor(p)
-            ds[:, i] = d[:, a] + d[:, b]
+            a, b = self.unpairCantor(p) #Get indexes of prototypes of a pair
+            ds[:, i] = d[:, a] + d[:, b] #Get the distance to the pair, note that here i denotes the index of a given pair
             i += 1
-        idp = np.argmin(ds, axis=1)
-        out = pairs[idp]
+        idp = np.argmin(ds, axis=1) #Find smallest distances ang get index of this nearest pairs
+        out = pairs[idp] #Convert a list of unique pairs to the full array of new pairs
         return out
 
     def __getRegionStats(self, X, y, pairs):
@@ -123,31 +139,32 @@ class PPE:
         """
 
         ux = np.unique(self.proto_labels)
-        if isinstance(X, pd.DataFrame):
+        if isinstance(X, pd.DataFrame): #If dataframe then convert input data to numpy
             X = X.values
         if isinstance(y, pd.DataFrame) or isinstance(y, pd.Series):
-            y = y.values
-        self.ux = ux
-        if len(ux) != 2:
+            y = y.values #If pd.DataFrame then convert input data to numpy
+        self.ux = ux #Get labels
+        if len(ux) != 2: #If more then 2 labels then error - the algorithm only supports 2 class problems
             raise ValueError("The algorithm assums binary classification, but the number of prototype classes is != 2")
         PY = self.proto_labels
         P = self.proto
         # indexes of samples from given class
-        idPos = np.squeeze(PY == ux[0])
-        idNeg = np.squeeze(PY == ux[1])
+        idPos = np.squeeze(PY == ux[0]) #Samples from first class
+        idNeg = np.squeeze(PY == ux[1]) #Samples from second class
         # for each sample in X it gets nearest samples from both classes
-        dPos = cdist(X, P[idPos, :], metric="sqeuclidean")
-        dNeg = cdist(X, P[idNeg, :], metric="sqeuclidean")
-        npp = np.argmin(dPos, axis=1)  # Nearest prototype positive
-        npn = np.argmin(dNeg, axis=1)  # Nearest prototype negative
+        dPos = cdist(X, P[idPos, :], metric="sqeuclidean") #Calculate distance from X to the prototypes from positive class
+        dNeg = cdist(X, P[idNeg, :], metric="sqeuclidean") #Calculate distance from X to the prototypes from negative class
+        npp = np.argmin(dPos, axis=1)  # Get index of the Nearest prototype positive
+        npn = np.argmin(dNeg, axis=1)  # Get index of the Nearest prototype negative
 
-        idPosI = np.nonzero(np.squeeze(idPos))[0]
-        idNegI = np.nonzero(np.squeeze(idNeg))[0]
+        idPosI = np.nonzero(np.squeeze(idPos))[0] #Convert binary index into numeric one for positive samples
+        idNegI = np.nonzero(np.squeeze(idNeg))[0] #Convert binary index into numeric one for negative samples
 
         idPosN = idPosI[npp]
         idNegN = idNegI[npn]
 
-        # Change order so that smaller number is always first
+        # Change order so that smaller number is always first to avoid duplicated indees such that from one sample the
+        # neares pair is 2, 10, and for the other 10, 2. To avoid it we always start with the smalles index so in both cases that will be 2, 10
         id = idPosN > idNegN
         tmp = idPosN[id]
         idPosN[id] = idNegN[id]
@@ -157,7 +174,7 @@ class PPE:
         pairs = self.pairCantor(idPosN, idNegN)
         stats = self.__getRegionStats(X, y, pairs)
         ux_pairs = np.unique(pairs)
-        # If samples fo not fulfill given statisitcs, reg
+        # If samples do not fulfill given statisitcs, reasign these samples to one of existing regions
         while (pair := self.__get_most_corrupted_regin(stats)) != -1:
             ux_pairs = ux_pairs[ux_pairs != pair]
             pairs = self.assign_regions(X, ux_pairs)
@@ -174,6 +191,20 @@ class PPE_ensemble(BaseEstimator, ClassifierMixin):
                  unbalanced_rate=0.01,
                  min_support=100,
                  proto_selection={0:10, 1:10}):
+        """
+        Constructor for the PPE_ensemble class.
+        The idea of this algorithm is presented in (to appear)
+        Basically it splits the datasets into smaller once using a distance to the nearest reference prototypes from
+        to separate classes
+        :param base_estimator: the base estimator to use for fitting the within each regino
+        :param unbalanced_rate: if a region has unbalanced number of samples from the two classes the the region will be
+         merged with another region that exist. Here we define the unbalanced tation
+        :param min_support: minimum number of samples per region
+        :param proto_selection: a protothpe selectin method. Possible options are:
+            dict wher kays are class label names and values represent the number of prototypes which will be randomly
+            selected from samples of given class
+            an algorithm from imblearn packated or some other algorithm which supports fit_resample method
+        """
         self.base_estimator = base_estimator
         self.unbalanced_rate = unbalanced_rate
         self.min_support = min_support
@@ -181,6 +212,14 @@ class PPE_ensemble(BaseEstimator, ClassifierMixin):
 
     def fit(self, X, #:pd.DataFrame | np.array,
                  y):#:pd.DataFrame | np.array):
+        """
+        Train and algorithm, it first starts be identifing region and then for each region it trains the base model
+        The trained models are stored in self.fitted_base_models_ attribute which is a dict where keys are prototype
+        pairs (see Cantar pairing function, or PPE class) and values are traind models
+        :param X: training samples delivered as numpy arrays or a DataFrame
+        :param y: training sample labels delivered as numpy arrays or a DataFrame
+        :return: self - trained model
+        """
         X, y = check_X_y(X, y)
         self.classes_ = unique_labels(y)
         if type(self.proto_selection) == dict:
@@ -214,14 +253,20 @@ class PPE_ensemble(BaseEstimator, ClassifierMixin):
 
     def predict(self, X, #:pd.DataFrame | np.array
                 ):
+        """
+        Method used for predicting the output of the model. For each sample in X it determines the nearest region out of
+         the existing region. And then based on the index of existing region it takes the classifier and performs prediction
+        :param X: samples to be classified
+        :return: predicted labels
+        """
         check_is_fitted(self)
         X = check_array(X)
         ux_pairs = self.ux_protoPairs_
-        pairs = self.ppe_.assign_regions(X,ux_pairs)
-        yp = np.zeros(X.shape[0])
-        for pair in ux_pairs:
-            id = pairs==pair
+        pairs = self.ppe_.assign_regions(X,ux_pairs) #For each sample in X get its nearest region
+        yp = np.zeros(X.shape[0]) #Allocate memory
+        for pair in ux_pairs: #Iterate over reginos
+            id = pairs==pair #Get samples which belong to region pair
             Xm = X[id, :]
-            model = self.fitted_base_models_[pair]
-            yp[id] = model.predict(Xm)
+            model = self.fitted_base_models_[pair] #Take the classifier associated to region "pair"
+            yp[id] = model.predict(Xm) #Make prediction using the classifier assigned to region "pair"
         return yp

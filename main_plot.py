@@ -69,7 +69,7 @@ mx = np.max(X, axis=0)
 limx = (mi.a1, mx.a1)
 limy = (mi.a2, mx.a2)
 
-ppe = ppelib.PPE(P, PY)
+ppe = ppelib.PPE(P, PY,unbalanced_rate=0, min_support=1)
 pairs = ppe.generate_regions(X, y)
 ux_protoPairs, ux_counts = np.unique(pairs, return_counts=True)
 print(f"UX Proto F0:")
