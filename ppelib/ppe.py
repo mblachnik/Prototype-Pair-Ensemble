@@ -3,13 +3,14 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 import math
+from sklearn.base import clone
 
 import sklearn
 from imblearn.base import SamplerMixin
 from scipy.spatial import Voronoi, voronoi_plot_2d
 from scipy.spatial.distance import cdist
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn.utils.estimator_checks import check_estimator
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
@@ -185,7 +186,7 @@ class PPE:
 import copy
 
 
-class PPE_ensemble(BaseEstimator, ClassifierMixin):
+class PPE_Classifier(BaseEstimator, ClassifierMixin):
     def __init__(self,
                  base_estimator=RandomForestClassifier(),
                  unbalanced_rate=0.01,
@@ -263,10 +264,32 @@ class PPE_ensemble(BaseEstimator, ClassifierMixin):
         X = check_array(X)
         ux_pairs = self.ux_protoPairs_
         pairs = self.ppe_.assign_regions(X,ux_pairs) #For each sample in X get its nearest region
-        yp = np.zeros(X.shape[0]) #Allocate memory
+        yp = np.zeros(X.shape[0],dtype=int) #Allocate memory
         for pair in ux_pairs: #Iterate over reginos
             id = pairs==pair #Get samples which belong to region pair
             Xm = X[id, :]
             model = self.fitted_base_models_[pair] #Take the classifier associated to region "pair"
             yp[id] = model.predict(Xm) #Make prediction using the classifier assigned to region "pair"
         return yp
+
+class EPPE_Classifier(VotingClassifier):
+    def __init__(self,
+                 ppe_estimator:PPE_Classifier,
+                 n_estimators: int = 10,
+                 voting="hard",
+                 weights=None,
+                 n_jobs=None,
+                 flatten_transform=True,
+                 verbose=False,
+        ):
+        self.ppe_estimator = ppe_estimator
+        self.n_estimators = n_estimators
+        estimators = [(f"PPE_{i}",clone(ppe_estimator)) for i in range(n_estimators)]
+        super().__init__(estimators = estimators,
+                            voting=voting,
+                            weights=weights,
+                            n_jobs=n_jobs,
+                            flatten_transform=flatten_transform,
+                            verbose=verbose)
+
+
