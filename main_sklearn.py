@@ -21,9 +21,9 @@ X = df[["X1", "X2"]]
 y = np.squeeze(df[['Y']].values)
 m1 = ppe.PPE_Classifier(proto_selection={-1:5, 1:5})
 m2 = RandomForestClassifier()
-m3 = ppe.EPPE_Classifier(ppe_estimator=ppe.PPE_Classifier(base_estimator=RandomForestClassifier(
-    n_estimators=10),
-    proto_selection={0:5, 1:5}),
+#m3 = ppe.EPPE_Classifier(ppe_estimator=ppe.PPE_Classifier(base_estimator=RandomForestClassifier(n_estimators=10),
+m3 = ppe.EPPE_Classifier(ppe_estimator=ppe.PPE_Classifier(base_estimator=DecisionTreeClassifier(),
+                         proto_selection={0:5, 1:5}), #Warning: Here it must be class 0,1 instead of -1,1 becouse VotingEnsemble use onehot label encodings which converts output labels into values [0,1]
                          n_estimators=10)
 m1.fit(X, y)
 yp = m1.predict(X)
