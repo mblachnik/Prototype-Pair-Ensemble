@@ -17,7 +17,19 @@ from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 from sklearn.utils.multiclass import unique_labels
 
 class PPE:
-    def __init__(self, proto, proto_labels, unbalanced_rate=0.01, min_support=10):
+    """
+    Class for Prototype Pair Calculations
+    It devides the dataset into regions as well as later identify the closes region when making predictions
+
+    """
+    def __init__(self, proto, proto_labels, unbalanced_rate=0.1, min_support=10):
+        """
+
+        :param proto: Prototypes position
+        :param proto_labels: Prototypes labels
+        :param unbalanced_rate: a rate for aggregating regions it is calculated as min(c1/c2,c2/c1) so it shows the ration of the minority to majority class within region
+        :param min_support: minimum number of samples in each region
+        """
         self.ux = None
         if isinstance(proto, pd.DataFrame):
             proto = proto.values
@@ -73,7 +85,7 @@ class PPE:
         out = pairs[idp] #Convert a list of unique pairs to the full array of new pairs
         return out
 
-    def __getRegionStats(self, X, y, pairs):
+    def _getRegionStats(self, X, y, pairs):
         """
         Function gets as inpyt labeled data, and region assigment and returns and calculates statists over the regions.
         This statistis in a form of a pandas Dataframe is returned where one column is a region_id (can be set as index),
@@ -120,7 +132,7 @@ class PPE:
         stats_df = pd.DataFrame(stats)
         return stats_df
 
-    def __get_most_corrupted_regin(self, stats: pd.DataFrame()):
+    def _get_most_corrupted_regin(self, stats: pd.DataFrame()):
         stats.sort_values("rank", inplace=True)
         stats.reset_index(drop=True, inplace=True)
         if stats.loc[0, "rank"] < 100:
@@ -173,14 +185,65 @@ class PPE:
 
         # Pair
         pairs = self.pairCantor(idPosN, idNegN)
-        stats = self.__getRegionStats(X, y, pairs)
+        stats = self._getRegionStats(X, y, pairs)
         ux_pairs = np.unique(pairs)
         # If samples do not fulfill given statisitcs, reasign these samples to one of existing regions
-        while (pair := self.__get_most_corrupted_regin(stats)) != -1:
+        while (pair := self._get_most_corrupted_regin(stats)) != -1:
             ux_pairs = ux_pairs[ux_pairs != pair]
             pairs = self.assign_regions(X, ux_pairs)
-            stats = self.__getRegionStats(X, y, pairs)
+            stats = self._getRegionStats(X, y, pairs)
         return pairs
+
+class PE(PPE):
+    def __init__(self, proto, proto_labels, unbalanced_rate=0.01, min_support=10):
+        super().__init__(proto, proto_labels, unbalanced_rate=unbalanced_rate, min_support=min_support)
+
+    def assign_regions(self, X: np.array, pairs: np.array) -> np.array:
+        """
+        For given samples in X it assignes new samples to one of hte regions
+        :param X: input data where each row will be assigned to one of existing pairs
+        :param pairs: a list of unique pairs
+        :return: the nearest pair for each row in X
+        """
+        d = cdist(X, self.proto[pairs,:], metric="sqeuclidean")
+        idp = np.argmin(d, axis=1)  # Find smallest distances ang get index of this nearest pairs
+        out = pairs[idp] #Convert a list of unique pairs to the full array of new pairs
+        return out
+
+    def generate_regions(self,
+                         X, #: pd.DataFrame | np.array,
+                         y #: pd.DataFrame | np.array
+                         ) -> np.array:
+        """
+        For input data and already knwon prototype pairs it assigns samples to given region
+        :param X:
+        :param y:
+        :return:
+        """
+        a = 1
+        if isinstance(X, pd.DataFrame):  # If dataframe then convert input data to numpy
+            X = X.values
+        if isinstance(y, pd.DataFrame) or isinstance(y, pd.Series):
+            y = y.values  # If pd.DataFrame then convert input data to numpy
+        ux = np.unique(y)  # Get labels
+        self.ux =ux
+        if len(ux) != 2:  # If more then 2 labels then error - the algorithm only supports 2 class problems
+            raise ValueError("The algorithm assums binary classification, but the number of prototype classes is != 2")
+        PY = self.proto_labels
+        P = self.proto
+        # for each sample in X it gets nearest samples from both classes
+        d = cdist(X, P,
+                     metric="sqeuclidean")  # Calculate distance from X to the prototypes from positive class
+        sample2region = np.argmin(d, axis=1)  # Get index of the Nearest prototype positive
+
+        stats = super()._getRegionStats(X, y, sample2region)
+        ux_regions = np.unique(sample2region)
+        # If samples do not fulfill given statisitcs, reasign these samples to one of existing regions
+        while (pair := super()._get_most_corrupted_regin(stats)) != -1:
+            ux_regions = ux_regions[ux_regions != pair]
+            sample2region = self.assign_regions(X, ux_regions)
+            stats = super()._getRegionStats(X, y, sample2region)
+        return sample2region
 
 
 import copy
@@ -189,8 +252,9 @@ import copy
 class PPE_Classifier(BaseEstimator, ClassifierMixin):
     def __init__(self,
                  base_estimator=RandomForestClassifier(),
-                 unbalanced_rate=0.01,
-                 min_support=100,
+                 type = "ppe",
+                 unbalanced_rate=0.3,
+                 min_support=500,
                  proto_selection={0:10, 1:10}):
         """
         Constructor for the PPE_ensemble class.
@@ -199,7 +263,7 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
         to separate classes
         :param base_estimator: the base estimator to use for fitting the within each regino
         :param unbalanced_rate: if a region has unbalanced number of samples from the two classes the the region will be
-         merged with another region that exist. Here we define the unbalanced tation
+         merged with another region that exist. Here we calculate it as min(c1/c2,c2/c1) so it shows the ration of the minority to majority class within region
         :param min_support: minimum number of samples per region
         :param proto_selection: a protothpe selectin method. Possible options are:
             dict wher kays are class label names and values represent the number of prototypes which will be randomly
@@ -210,6 +274,7 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
         self.unbalanced_rate = unbalanced_rate
         self.min_support = min_support
         self.proto_selection = proto_selection
+        self.type = type
 
     def fit(self, X, #:pd.DataFrame | np.array,
                  y):#:pd.DataFrame | np.array):
@@ -229,20 +294,24 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
                 idClass = np.nonzero(y == label)[0]
                 idx = sklearn.utils.resample(np.arange(idClass.shape[0]),n_samples=n_samples, replace=False)
                 idx_all[idClass[idx]] = True
-            Xp = X[idx_all,:]
-            yp = y[idx_all]
+            Xp = X[idx_all,:] #X of selected prototypes
+            yp = y[idx_all] #Y of selected prototypes
         elif type(self.proto_selection) == SamplerMixin :
             Xp, yp = self.proto_selection.fit_resample(X, y)
-        ppe = PPE(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support)
-        self.ppe_ = ppe
+        if self.type=="ppe":
+            ppe = PPE(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support)
+        elif self.type=="pe":
+            ppe = PE(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support)
+        else:
+            raise ValueError("Unknown type")
+        self.proto_ensemble_ = ppe
         pairs = ppe.generate_regions(X, y)
-        ux_protoPairs, ux_counts = np.unique(pairs, return_counts=True)
-        self.pairs_ = ux_protoPairs
-        self.pairs_count_ = ux_counts
+        ux_regions, ux_regions_counts = np.unique(pairs, return_counts=True)
+        self.regions_ = ux_regions
+        self.regions_count_ = ux_regions_counts
 
-        self.ux_protoPairs_ = ux_protoPairs
         self.fitted_base_models_ = {}
-        for pair in ux_protoPairs:
+        for pair in ux_regions:
             id = pairs == pair
             Xm = X[id, :]
             ym = y[id]
@@ -262,13 +331,13 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
         """
         check_is_fitted(self)
         X = check_array(X)
-        ux_pairs = self.ux_protoPairs_
-        pairs = self.ppe_.assign_regions(X,ux_pairs) #For each sample in X get its nearest region
+        regions_ = self.regions_
+        sample2region = self.proto_ensemble_.assign_regions(X, regions_) #For each sample in X get its nearest region
         yp = np.zeros(X.shape[0],dtype=int) #Allocate memory
-        for pair in ux_pairs: #Iterate over reginos
-            id = pairs==pair #Get samples which belong to region pair
+        for region in regions_: #Iterate over reginos
+            id = sample2region==region #Get samples which belong to region pair
             Xm = X[id, :]
-            model = self.fitted_base_models_[pair] #Take the classifier associated to region "pair"
+            model = self.fitted_base_models_[region] #Take the classifier associated to region "pair"
             yp[id] = model.predict(Xm) #Make prediction using the classifier assigned to region "pair"
         return yp
 
