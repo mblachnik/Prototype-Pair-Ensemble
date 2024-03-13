@@ -20,7 +20,7 @@ df = pd.read_csv("Data/banana.csv")
 X = df[["X1", "X2"]]
 y = np.squeeze(df[['Y']].values)
 m1 = ppe.PPE_Classifier(type="pe",proto_selection={-1:5, 1:5}, min_support=400)
-m2 = ppe.PPE_Classifier(type="ppe",proto_selection={-1:5, 1:5}, min_support=400)
+m2 = ppe.PPE_Classifier(type="ppe",proto_selection={-1:15, 1:15}, min_support=400)
 m3 = ppe.EPPE_Classifier(ppe_estimator=
                          ppe.PPE_Classifier(base_estimator=RandomForestClassifier(n_estimators=10),
                                             proto_selection={0:5, 1:5}), #Warning: Here it must be class 0,1 instead of -1,1 becouse VotingEnsemble use onehot label encodings which converts output labels into values [0,1]
