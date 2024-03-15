@@ -67,19 +67,21 @@ class PPE:
         """
         return 0.5 * (a + b) * (a + b + 1) + b
 
-    def assign_regions(self, X: np.array, pairs: np.array) -> np.array:
+    def assign_regions(self, X: np.array, pairs: np.array, dist:np.array = None) -> np.array:
         """
         For given samples in X it assignes new samples to one of hte regions
         :param X: input data where each row will be assigned to one of existing pairs
         :param pairs: a list of unique pairs
+        :param dist: a matrix of distances between every row in X and every prototype. In None the it will be calculated within the function but it takes alot of time so this matrix can be delivered from outside
         :return: the nearest pair for each row in X
         """
-        d = cdist(X, self.proto, metric="sqeuclidean")
-        ds = np.zeros((d.shape[0], len(pairs))) #Allocate memory to store the results - distances to prototypes constituting given pair
+        if dist is None:
+            dist = cdist(X, self.proto, metric="sqeuclidean")
+        ds = np.zeros((dist.shape[0], len(pairs))) #Allocate memory to store the results - distances to prototypes constituting given pair
         i = 0
         for p in pairs:
             a, b = self.unpairCantor(p) #Get indexes of prototypes of a pair
-            ds[:, i] = d[:, a] + d[:, b] #Get the distance to the pair, note that here i denotes the index of a given pair
+            ds[:, i] = dist[:, a] + dist[:, b] #Get the distance to the pair, note that here i denotes the index of a given pair
             i += 1
         idp = np.argmin(ds, axis=1) #Find smallest distances ang get index of this nearest pairs
         out = pairs[idp] #Convert a list of unique pairs to the full array of new pairs
@@ -165,8 +167,11 @@ class PPE:
         idPos = np.squeeze(PY == ux[0]) #Samples from first class
         idNeg = np.squeeze(PY == ux[1]) #Samples from second class
         # for each sample in X it gets nearest samples from both classes
-        dPos = cdist(X, P[idPos, :], metric="sqeuclidean") #Calculate distance from X to the prototypes from positive class
-        dNeg = cdist(X, P[idNeg, :], metric="sqeuclidean") #Calculate distance from X to the prototypes from negative class
+        dist = cdist(X, self.proto, metric="sqeuclidean")
+        dPos = dist[:,idPos]
+        dNeg = dist[:,idNeg]
+        #dPos = cdist(X, P[idPos, :], metric="sqeuclidean") #Calculate distance from X to the prototypes from positive class
+        #dNeg = cdist(X, P[idNeg, :], metric="sqeuclidean") #Calculate distance from X to the prototypes from negative class
         npp = np.argmin(dPos, axis=1)  # Get index of the Nearest prototype positive
         npn = np.argmin(dNeg, axis=1)  # Get index of the Nearest prototype negative
 
@@ -190,7 +195,7 @@ class PPE:
         # If samples do not fulfill given statisitcs, reasign these samples to one of existing regions
         while (pair := self._get_most_corrupted_regin(stats)) != -1:
             ux_pairs = ux_pairs[ux_pairs != pair]
-            pairs = self.assign_regions(X, ux_pairs)
+            pairs = self.assign_regions(X, ux_pairs, dist)
             stats = self._getRegionStats(X, y, pairs)
         return pairs
 
@@ -198,15 +203,17 @@ class PE(PPE):
     def __init__(self, proto, proto_labels, unbalanced_rate=0.01, min_support=10):
         super().__init__(proto, proto_labels, unbalanced_rate=unbalanced_rate, min_support=min_support)
 
-    def assign_regions(self, X: np.array, pairs: np.array) -> np.array:
+    def assign_regions(self, X: np.array, pairs: np.array, dist:np.array = None) -> np.array:
         """
         For given samples in X it assignes new samples to one of hte regions
         :param X: input data where each row will be assigned to one of existing pairs
         :param pairs: a list of unique pairs
+        :param dist: a matrix of distances between every row in X and every prototype. In None the it will be calculated within the function but it takes alot of time so this matrix can be delivered from outside
         :return: the nearest pair for each row in X
         """
-        d = cdist(X, self.proto[pairs,:], metric="sqeuclidean")
-        idp = np.argmin(d, axis=1)  # Find smallest distances ang get index of this nearest pairs
+        if dist is None:
+            dist = cdist(X, self.proto[pairs,:], metric="sqeuclidean")
+        idp = np.argmin(dist, axis=1)  # Find smallest distances ang get index of this nearest pairs
         out = pairs[idp] #Convert a list of unique pairs to the full array of new pairs
         return out
 
@@ -232,16 +239,16 @@ class PE(PPE):
         PY = self.proto_labels
         P = self.proto
         # for each sample in X it gets nearest samples from both classes
-        d = cdist(X, P,
+        dist = cdist(X, P,
                      metric="sqeuclidean")  # Calculate distance from X to the prototypes from positive class
-        sample2region = np.argmin(d, axis=1)  # Get index of the Nearest prototype positive
+        sample2region = np.argmin(dist, axis=1)  # Get index of the Nearest prototype positive
 
         stats = super()._getRegionStats(X, y, sample2region)
         ux_regions = np.unique(sample2region)
         # If samples do not fulfill given statisitcs, reasign these samples to one of existing regions
         while (pair := super()._get_most_corrupted_regin(stats)) != -1:
             ux_regions = ux_regions[ux_regions != pair]
-            sample2region = self.assign_regions(X, ux_regions)
+            sample2region = self.assign_regions(X, ux_regions, dist)
             stats = super()._getRegionStats(X, y, sample2region)
         return sample2region
 
