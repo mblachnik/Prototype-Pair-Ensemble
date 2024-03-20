@@ -213,6 +213,8 @@ class PE(PPE):
         """
         if dist is None:
             dist = cdist(X, self.proto[pairs,:], metric="sqeuclidean")
+        else:
+            dist = dist[:,pairs]
         idp = np.argmin(dist, axis=1)  # Find smallest distances ang get index of this nearest pairs
         out = pairs[idp] #Convert a list of unique pairs to the full array of new pairs
         return out
