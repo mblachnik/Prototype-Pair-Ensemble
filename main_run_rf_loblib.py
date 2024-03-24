@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 from imblearn.under_sampling import ClusterCentroids
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, GridSearchCV
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.preprocessing import LabelEncoder
 from sklearn.cluster import KMeans
@@ -17,13 +17,15 @@ import os
 from ppelib import ppe
 from sklearn.base import clone
 from sklearn.svm import SVC
+from sklearn.metrics import balanced_accuracy_score
 from joblib import Parallel, delayed
 import time
+
 
 from ppelib.sampler.kmeans_sampler import SimpleClusterCentroids
 
 
-def parrFun(meta_columns, model, modelName, dataset, fileId):
+def parrFun(meta_columns, model, modelName, dataset, fileId, resultsDir):
     dataDir,dataset = dataset
     traFile = f"{dataset}-10-{fileId}tra.dat.csv"
     tstFile = f"{dataset}-10-{fileId}tst.dat.csv"
@@ -48,32 +50,47 @@ def parrFun(meta_columns, model, modelName, dataset, fileId):
     yp = m.predict(XTe)
     predict_end_time = time.time()
     acc = np.mean(yTe == yp)
-    res["accuracy"] = acc
+    bacc = balanced_accuracy_score(yTe,yp)
+    res["acc"] = acc
+    res["bacc"] = bacc
     res["model"] = modelName
     #print(f"{modelName} ACC={acc}")
     res["train_time"] = fit_end_time - fit_start_time
     res["predict_time"] = predict_end_time - fit_end_time
+    id = list(m.fitted_base_models_.keys())[0]
+    res["C"] = m.fitted_base_models_[id].best_params_["C"]
+    res["gamma"] = m.fitted_base_models_[id].best_params_["gamma"]
     if type(model)==ppe.PPE_Classifier:
         res["regions"] = m.regions_.shape[0]
     else:
         res["regions"] = 1
+    tmp = pd.DataFrame([res])
+    tmp.to_csv(resultsDir+ os.sep + modelName + "_" + tstFile + ".csv")
     return res
 
-def gen_params(datasets,meta_columns):
+def gen_params(datasets,meta_columns, resultsDir):
     params = []
     for dataset in datasets:
         for fileId in range(1, 11):
             for modelName, model in models:
-                params.append((meta_columns, model, modelName, dataset, fileId))
+                params.append((meta_columns, model, modelName, dataset, fileId, resultsDir))
     return params
 
 if __name__ == '__main__':
-    parallel = False
+    parallel = True
     dataDir = r'D:\mblachnik\datasets\Datasets\KeelNormCV'
     dataDirLarge = "D:\\mblachnik\\datasets\\large"
+    resultsDir = "Data\\tmp_results"
     protos = 15
+    script_n_jobs = 12
+
     #base_estimator = RandomForestClassifier(n_estimators=100, n_jobs=10)
     base_estimator = SVC(C=1, gamma='auto', cache_size=200)
+    base_estimator = GridSearchCV(estimator=SVC(),
+                                  param_grid={'C': [0.01, 0.1 , 1, 10, 100],
+                                              'gamma': [0.01, 0.1, 1, 10]},
+                                  n_jobs=5,
+                                  )
     models = [
         # ("PE", ppe.PPE_Classifier(base_estimator=base_estimator,
         #                           type="pe",proto_selection={0:protos, 1:protos}, min_support=400, unbalanced_rate=0.05)),
@@ -81,20 +98,20 @@ if __name__ == '__main__':
         #                            type="ppe", proto_selection={0: protos, 1: protos}, min_support=400, unbalanced_rate=0.05)),
         ("PE",  ppe.PPE_Classifier(base_estimator=base_estimator,
                                    type="pe",
-                                   proto_selection=SimpleClusterCentroids(n_clusters=20),
+                                   proto_selection=SimpleClusterCentroids(n_clusters=15),
                                    min_support=400,
                                    minimum_regions=2
                                    )),
         ("PPE2", ppe.PPE_Classifier(base_estimator=base_estimator,
                                     type="ppe2",
                                     proto_selection=ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
-                                        sampling_strategy={0: 15, 1: 15}),
+                                        sampling_strategy={0: 10, 1: 10}),
                                     min_support=400,
                                     minimum_regions=2)),
         ("PPE", ppe.PPE_Classifier(base_estimator=base_estimator,
                                    type="ppe",
                                    proto_selection=ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
-                                       sampling_strategy={0: 15, 1: 15}),
+                                       sampling_strategy={0: 10, 1: 10}),
                                    min_support=400,
                                    minimum_regions=2))
         # ("EPPE",ppe.EPPE_Classifier(ppe_estimator=
@@ -106,38 +123,37 @@ if __name__ == '__main__':
         #("BASE",base_estimator),
         ]
 
-    datasets = [ (dataDir,"coil2000")]
-    q = [
-                # "Agrawal1",
+    datasets = [
+
+                    # "Agrawal1",
                 # "Stagger1", #100% dokładności
                 # "BayesianNetworkGenerator_spambase",
                 #"BNG_sonar",
-        # (dataDirLarge,"codrnaNorm"),
-        # (dataDirLarge,"electricity-normalized"),
-        # (dataDirLarge,"covtype"),
-        # (dataDirLarge,"php89ntbG"),
+        #(dataDirLarge,"codrnaNorm"),
+        #(dataDirLarge,"electricity-normalized"),
+        #(dataDirLarge,"covtype"),
+        (dataDirLarge,"php89ntbG"),
 
-
-
-        (dataDir,"spambase"),
-        (dataDir,"banana"),
-        (dataDir,"phoneme"),
-        (dataDir,"ring"),
-        (dataDir,"twonorm"),
-        (dataDir,"coil2000"),
-        (dataDir,"magic"),
+        # (dataDir,"spambase"),
+        # (dataDir,"banana"),
+        # (dataDir,"phoneme"),
+        # (dataDir,"ring"),
+        # (dataDir,"twonorm"),
+        # (dataDir,"coil2000"),
+        # (dataDir,"magic"),
                  #"shuttle2"
                 ]
 
     meta_columns = ["LABEL","id"]
 
-    params = gen_params(datasets,meta_columns)
+    params = gen_params(datasets, meta_columns, resultsDir)
 
     if parallel:
-        with Parallel(n_jobs=40) as parallel:
+        with Parallel(n_jobs=script_n_jobs) as parallel:
             start_time = time.time()
             all_res = parallel(delayed(parrFun)(*param) for param in params)
             print("--- %s seconds ---" % (time.time() - start_time))
+
     else:
         all_res = []
         for param in params:
