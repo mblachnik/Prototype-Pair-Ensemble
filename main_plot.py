@@ -58,46 +58,28 @@ width, height = 8, 6
 # ux_protoPairs = np.unique(df1['ID_Proto_Pair'])
 
 X = df11[["a1", "a2"]]
-y = df11[['Class']]
-id1 = y == 1
-n = 2
-idx1 = id1[id1.values].sample(n=3)
-idx2 = id1[~id1.values].sample(n=2)
-PX = pd.concat((df11.loc[idx1.index, ["a1", "a2"]],
-                df11.loc[idx2.index, ["a1", "a2"]]))  # df2[["a1","a2"]]
-PY = pd.concat((df11.loc[idx1.index, ["Class"]],
-                df11.loc[idx2.index, ["Class"]]))  # df2[["a1","a2"]]
+df11.loc[df11['Class']==-1, 'Class']=0
+y = df11[['Class']].values
 
 mi = np.min(X, axis=0)
 mx = np.max(X, axis=0)
 limx = (mi.a1, mx.a1)
 limy = (mi.a2, mx.a2)
 
-# base_estimator = RandomForestClassifier()
-# ppe = ppelib.PPE_Classifier(base_estimator=base_estimator,
-#                                     type="ppe2",
-#                                     proto_selection=ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
-#                                         sampling_strategy={0: 15, 1: 15}),
-#                                     min_support=400,
-#                                     minimum_regions=2)
+id1 = y == 1
+n = 2
+idx1 = df11[id1].sample(n=3).index
+idx2 = df11[~id1].sample(n=2).index
 
-cl = ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
-                  sampling_strategy={0: 3, 1: 3})
-y[y==-1] = 0
-#PX,PY =cl.fit_resample(X,y)
-PX =pd.DataFrame([[0.99470783, 0.51770136],
-       [0.02465749, 0.14812839],
-       [0.61552881, 0.10683872],
-       [0.16161304, 0.94875707],
-       [0.75546858, 0.68521314]], columns=["a1","a2"]).reset_index(drop=True)
+PX,PY = (pd.concat((df11.loc[idx1, ["a1", "a2"]], df11.loc[idx2, ["a1", "a2"]])),  # df2[["a1","a2"]]
+         pd.concat((df11.loc[idx1, ["Class"]],    df11.loc[idx2, ["Class"]])))  # df2[["a1","a2"]]
 
-PY = pd.DataFrame([[ 1.],
-       [ 1.],
-       [ 1.],
-       [0.],
-       [0.]], columns=["Class"]).reset_index(drop=True)
+# PX,PY = ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
+#                          sampling_strategy={0: 3, 1: 3}).fit_resample(X,y)
+# PX, PY =(pd.DataFrame([[0.99470783, 0.51770136],[0.02465749, 0.14812839],[0.61552881, 0.10683872],[0.16161304, 0.94875707],[0.75546858, 0.68521314]], columns=["a1","a2"]).reset_index(drop=True),
+#          pd.DataFrame([[ 1.],[ 1.],[ 1.],[0.],[0.]], columns=["Class"]).reset_index(drop=True))
 
-ppe = ppelib.PPE2(proto=PX,
+ppe = ppelib.PPE3(proto=PX,
                   proto_labels=PY,
                   unbalanced_rate=0.05,
                   min_support=10,

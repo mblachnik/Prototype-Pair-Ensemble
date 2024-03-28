@@ -261,7 +261,7 @@ class PPE(PPEBase):
         ux_pairs = self._get_possible_pairs(X, y)
         dist = cdist(X, self.proto, metric="sqeuclidean")
         self._update_inverted_index(ux_pairs)
-        pairs = self.assign_regions(X, ux_pairs, dist)
+        pairs = self._generate_regions_assign(X, ux_pairs, dist)
         stats = self._getRegionStats(X, y, pairs)
         ux_pairs = list(pairs.keys())
         if self.prune_regions:
@@ -269,10 +269,13 @@ class PPE(PPEBase):
             while ((pair := self._get_most_corrupted_regin(stats)) != -1) and (len(ux_pairs)>self.minimum_n_regions):
                 ux_pairs.remove(pair)
                 self._update_inverted_index(ux_pairs)
-                pairs = self.assign_regions(X, ux_pairs, dist)
+                pairs = self._generate_regions_assign(X, ux_pairs, dist)
                 stats = self._getRegionStats(X, y, pairs)
         self.region_stats = stats
         return pairs
+
+    def _generate_regions_assign(self, X: np.ndarray, regions: list | np.ndarray, dist: np.ndarray = None) -> dict:
+        return self.assign_regions(X, regions, dist)
 
     def _update_inverted_index(self, ux_pairs):
         self.regions_inverted_index = {}
@@ -391,9 +394,35 @@ class PPE3(PPE):
         pairs = self.pairCantor(np.array(idPosN), np.array(idNegN))
         return pairs
 
+    def _generate_regions_assign(self, X: np.ndarray, regions: list|np.ndarray, dist: np.ndarray = None) -> dict:
+        """
+        For given samples in X it assignes new samples to one of hte regions during the training call for generate_regions
+        :param X: input data where each row will be assigned to one of existing pairs
+        :param regions: a list of unique pairs
+        :param dist: a matrix of distances between every row in X and every prototype. In None the it will be calculated within the function but it takes alot of time so this matrix can be delivered from outside
+        :return: a dict with keys equal regions id and values equal to samples from X indexes assigned to given region.
+        """
+        if type(regions)==np.ndarray:
+            pass
+        elif type(regions)==list:
+            regions = np.array(regions)
+        else:
+            raise TypeError("Incorrect type of regions input")
+
+        if dist is None:
+            dist = cdist(X, self.proto, metric="sqeuclidean")
+        protos_id = np.array(sorted(set(sum(map(self.unpairCantor,regions),()))))
+
+        minid = np.argmin(dist[:,protos_id],axis=1)
+        minid = protos_id[minid] #Getting index of the nearest prototype
+        fun = lambda a,b : (a == minid) | (b == minid)
+        out = {region:  fun( *self.unpairCantor(region) ) for region in regions}
+
+        return out
+
     def assign_regions(self, X: np.ndarray, regions: list|np.ndarray, dist: np.ndarray = None) -> dict:
         """
-        For given samples in X it assignes new samples to one of hte regions
+        For given samples in X it assignes new samples to one of the regions during the prediction phase
         :param X: input data where each row will be assigned to one of existing pairs
         :param regions: a list of unique pairs
         :param dist: a matrix of distances between every row in X and every prototype. In None the it will be calculated within the function but it takes alot of time so this matrix can be delivered from outside
@@ -407,10 +436,11 @@ class PPE3(PPE):
             raise TypeError("Incorrect type of regions input")
         index = list(self.regions_inverted_index.keys())
         if dist is None:
-            dist = cdist(X, self.proto[index,:], metric="sqeuclidean")
+            dist = cdist(X, self.proto, metric="sqeuclidean")
+        protos_id = np.array(sorted(set(sum(map(self.unpairCantor, regions), ()))))
 
-        minid = np.argmin(dist,axis=1)
-        minid = index[minid] #Getting index of the nearest prototype
+        minid = np.argmin(dist[:,protos_id],axis=1)
+        minid = protos_id[minid] #Getting index of the nearest prototype
 
 
         ds = np.zeros((dist.shape[0],
@@ -418,7 +448,10 @@ class PPE3(PPE):
 
         for i,p in enumerate(regions):
             a, b = self.unpairCantor(p)  # Get indexes of prototypes of a pair
-            ds[:, i] = dist[:, minid] + dist[:,b]  # Get the distance to the pair, note that here i denotes the index of a given pair
+            ds[:, i] = dist[:, a] + dist[:,b]# Get the distance to the pair, note that here i denotes the index of a given pair
+            chk = (a == minid) | (b == minid)
+            ds[~chk,i] = np.inf #If prototype a or b are not in the voronoi cell of the closest prototypes ten set its value to inf. We only want those pairs which are included in the nearest cell
+
         idp = np.argmin(ds, axis=1)  # Find smallest distances ang get index of this nearest pairs
         out = {}
         regins_index = regions[idp]
@@ -485,8 +518,6 @@ class PE(PPEBase):
         return regions
 
 
-
-
 class PPE_Classifier(BaseEstimator, ClassifierMixin):
     def __init__(self,
                  base_estimator=RandomForestClassifier(),
@@ -494,7 +525,8 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
                  unbalanced_rate=0.3,
                  min_support=500,
                  minimum_regions=1,
-                 proto_selection={0:10, 1:10}):
+                 proto_selection={0:10, 1:10},
+                 prune_regions = True):
         """
         Constructor for the PPE_ensemble class.
         The idea of this algorithm is presented in (to appear)
@@ -515,6 +547,7 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
         self.proto_selection = proto_selection
         self.type = type
         self.minimum_regions=minimum_regions=2
+        self.prune_regions = prune_regions
 
     def _initialize_ppe(self,X,y):
         if type(self.proto_selection) == dict:
@@ -531,9 +564,11 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
             raise ValueError("Unknown prototype selection method")
 
         if self.type=="ppe":
-            ppe = PPE(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support, minimum_n_regions=self.minimum_regions)
+            ppe = PPE(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support, minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions)
         elif self.type=="ppe2":
-            ppe = PPE2(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support, minimum_n_regions=self.minimum_regions)
+            ppe = PPE2(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support, minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions)
+        elif self.type=="ppe3":
+            ppe = PPE3(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support, minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions)
         elif self.type=="pe":
             ppe = PE(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support, prune_regions=True, minimum_n_regions=self.minimum_regions)
         else:
