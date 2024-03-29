@@ -112,6 +112,11 @@ qcc = np.zeros((xyc.shape[0],1))
 for i,(k,v) in enumerate(qc.items()):
     qcc[v]=i
 
+regions = ppe.regions_inverted_indexs
+protos_id = np.array(sorted(set(sum(map(ppe.unpairCantor, regions), ()))))
+PX = pd.DataFrame(ppe.proto[protos_id,:],columns=["a1","a2"])
+PY = pd.DataFrame(ppe.proto_labels[protos_id,:], columns=["Class"])
+
 qcc = np.reshape(qcc, Xc.shape)
 
 n = len(ux_protoPairs)

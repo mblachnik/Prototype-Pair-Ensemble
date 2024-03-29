@@ -20,6 +20,7 @@ from sklearn.utils.estimator_checks import check_estimator
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 from sklearn.utils.multiclass import unique_labels
 from sklearn.cluster import KMeans
+from joblib import Parallel, delayed
 
 class PPEBase:
     """
@@ -526,7 +527,8 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
                  min_support=500,
                  minimum_regions=1,
                  proto_selection={0:10, 1:10},
-                 prune_regions = True):
+                 prune_regions = True,
+                 n_jobs = None):
         """
         Constructor for the PPE_ensemble class.
         The idea of this algorithm is presented in (to appear)
@@ -548,6 +550,7 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
         self.type = type
         self.minimum_regions=minimum_regions=2
         self.prune_regions = prune_regions
+        self.n_jobs = n_jobs
 
     def _initialize_ppe(self,X,y):
         if type(self.proto_selection) == dict:
@@ -598,15 +601,22 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
         self.regions_ = list(regions.keys())
         self.region_stats = ppe.region_stats
         self.fitted_base_models_ = {}
+        modelsInputData = []
         for region in regions:
             id = regions[region]
-            if np.sum(id)==0: continue
+            if np.sum(id) == 0: continue
             Xm = X[id, :]
             ym = y[id]
-
             model = copy.deepcopy(self.base_estimator)
-            model.fit(Xm, ym)
-            self.fitted_base_models_[region] = model
+            modelsInputData.append((region,Xm,ym, model))
+
+        if self.n_jobs is not None:
+            parrTrainFun = lambda region, Xm, ym, model : (region, model.fit(Xm, ym))
+            with Parallel(n_jobs=self.n_jobs) as parallel:
+                res_all = parallel(delayed(parrTrainFun)(*input) for input in modelsInputData )
+                self.fitted_base_models_ = {region : model for region, model in res_all}
+        else:
+            self.fitted_base_models_ = {region :model.fit(Xm, ym) for region, Xm, ym, model in modelsInputData}
         return self
 
     def predict(self, X :pd.DataFrame | np.ndarray):
