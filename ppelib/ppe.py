@@ -624,8 +624,9 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
         for region in regions_: #Iterate over reginos
             id = sample2region[region] #Get samples which belong to region pair
             Xm = X[id, :]
-            model = self.fitted_base_models_[region] #Take the classifier associated to region "pair"
-            yp[id] = model.predict(Xm) #Make prediction using the classifier assigned to region "pair"
+            if Xm.size:
+                model = self.fitted_base_models_[region] #Take the classifier associated to region "pair"
+                yp[id] = model.predict(Xm) #Make prediction using the classifier assigned to region "pair"
         return yp
 
 class EPPE_Classifier(VotingClassifier):

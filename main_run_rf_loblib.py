@@ -61,7 +61,7 @@ def parrFun(meta_columns, model, modelName, dataset, fileId, resultsDir):
     res["C"] = m.fitted_base_models_[id].best_params_["C"]
     res["gamma"] = m.fitted_base_models_[id].best_params_["gamma"]
     if type(model)==ppe.PPE_Classifier:
-        res["regions"] = m.regions_.shape[0]
+        res["regions"] = len(m.regions_) #.shape[0]
     else:
         res["regions"] = 1
     tmp = pd.DataFrame([res])
@@ -98,21 +98,24 @@ if __name__ == '__main__':
         #                            type="ppe", proto_selection={0: protos, 1: protos}, min_support=400, unbalanced_rate=0.05)),
         ("PE",  ppe.PPE_Classifier(base_estimator=base_estimator,
                                    type="pe",
-                                   proto_selection=SimpleClusterCentroids(n_clusters=15),
-                                   min_support=400,
+                                   proto_selection=SimpleClusterCentroids(n_clusters=10),
+                                   min_support=200,
+                                   unbalanced_rate=0.01,
                                    minimum_regions=2
                                    )),
-        ("PPE2", ppe.PPE_Classifier(base_estimator=base_estimator,
-                                    type="ppe2",
+        ("PPE3", ppe.PPE_Classifier(base_estimator=base_estimator,
+                                    type="ppe3",
                                     proto_selection=ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
-                                        sampling_strategy={0: 10, 1: 10}),
-                                    min_support=400,
-                                    minimum_regions=2)),
+                                        sampling_strategy={0: 5, 1: 5}),
+                                    min_support=200,
+                                    minimum_regions=2,
+                                    prune_regions=False)),
         ("PPE", ppe.PPE_Classifier(base_estimator=base_estimator,
                                    type="ppe",
                                    proto_selection=ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
-                                       sampling_strategy={0: 10, 1: 10}),
-                                   min_support=400,
+                                       sampling_strategy={0: 5, 1: 5}),
+                                   min_support=200,
+                                   unbalanced_rate=0.01,
                                    minimum_regions=2))
         # ("EPPE",ppe.EPPE_Classifier(ppe_estimator=
         #                      ppe.PPE_Classifier(base_estimator=RandomForestClassifier(n_estimators=10),
@@ -132,15 +135,18 @@ if __name__ == '__main__':
         #(dataDirLarge,"codrnaNorm"),
         #(dataDirLarge,"electricity-normalized"),
         #(dataDirLarge,"covtype"),
-        (dataDirLarge,"php89ntbG"),
+        #(dataDirLarge,"php89ntbG"),
 
-        # (dataDir,"spambase"),
-        # (dataDir,"banana"),
-        # (dataDir,"phoneme"),
-        # (dataDir,"ring"),
-        # (dataDir,"twonorm"),
-        # (dataDir,"coil2000"),
-        # (dataDir,"magic"),
+
+        (dataDir, "banana"),
+        (dataDir, "coil2000"),
+        (dataDir, "magic"),
+        (dataDir, "phoneme"),
+        (dataDir, "ring"),
+        (dataDir, "spambase"),
+        (dataDir, "twonorm"),
+
+
                  #"shuttle2"
                 ]
 
