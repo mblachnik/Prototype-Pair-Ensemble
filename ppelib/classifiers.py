@@ -163,8 +163,9 @@ class EPPE_Classifier(VotingClassifier):
 
 
 class RandomOracle(BaseEstimator, ClassifierMixin):
-    def __init__(self, base_estimator):
+    def __init__(self, base_estimator, min_size):
         self.base_estimator = base_estimator
+        self.min_size = min_size
 
     def _splitData(self, X):
         d = cdist(X, self.proto_, 'sqeuclidean')
@@ -174,17 +175,26 @@ class RandomOracle(BaseEstimator, ClassifierMixin):
     def fit(self, X, y):
         self.classes_ = unique_labels(y)
         X, y = check_X_y(X, y)
-        chk=True
+        chk = True
         while chk:
+            chk = True
             idx = np.random.randint(X.shape[0], size=2)
             proto = X[idx, :].copy()
             self.proto_ = proto
             id1,id2 = self._splitData(X)
-            s1 = np.sum(id1)
-            s2 = np.sum(id2)
-            ss1 = np.sum(y[id])
-            if (s1>10) and (s2>10):
+            ux1,co_ux1 = np.unique(y[id1],return_counts=True)
+            ux2, co_ux2 = np.unique(y[id2], return_counts=True)
+            cl = len(self.classes_)
+            c1 = len(ux1)
+            c2 = len(ux2)
+            if (cl==c1) and (c2==cl):
                 chk = False
+                for co1,co2 in zip(co_ux1,co_ux2):
+                    if (co1<self.min_size) or (co2<self.min_size):
+                        chk = True
+                        continue
+
+
         X1 = X[id1,:]
         y1 = y[id1]
         X2 = X[id2,:]
@@ -209,7 +219,7 @@ class RandomOracle(BaseEstimator, ClassifierMixin):
 
 class RandomOracle_Classifier(VotingClassifier):
     def __init__(self,
-                 base_estimator: RandomOracle(base_estimator=RandomForestClassifier()),
+                 base_estimator: RandomOracle(base_estimator=RandomForestClassifier(),min_size=100),
                  n_estimators: int = 30,
                  voting="hard",
                  weights=None,
