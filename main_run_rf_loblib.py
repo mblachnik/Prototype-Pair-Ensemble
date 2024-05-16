@@ -8,10 +8,12 @@ Created on Thu Oct 19 12:08:25 2023
 import pandas as pd
 import numpy as np
 from imblearn.under_sampling import ClusterCentroids
+from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score, GridSearchCV
+from sklearn.pipeline import Pipeline
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.cluster import KMeans
 import os
 from ppelib import ppe
@@ -42,13 +44,14 @@ def parrFun(meta_columns, model, modelName, dataset, fileId, resultsDir):
     yTe = np.squeeze(dfTe[['LABEL']].values)
     yTe = oh.transform(yTe)
     res = {"dataset": dataset}
-    print(f"CV_{fileId}")
+    print(f"==> Starting calculations for {dataset} using {modelName} CV_{fileId}")
     m = clone(model)
     fit_start_time = time.time()
     m.fit(X, y)
     fit_end_time = time.time()
     yp = m.predict(XTe)
     predict_end_time = time.time()
+    print(f"Finished calculations for {dataset} using {modelName} CV_{fileId} after {fit_start_time- predict_end_time} [s]")
     acc = np.mean(yTe == yp)
     bacc = balanced_accuracy_score(yTe,yp)
     res["acc"] = acc
@@ -57,9 +60,9 @@ def parrFun(meta_columns, model, modelName, dataset, fileId, resultsDir):
     #print(f"{modelName} ACC={acc}")
     res["train_time"] = fit_end_time - fit_start_time
     res["predict_time"] = predict_end_time - fit_end_time
-    id = list(m.fitted_base_models_.keys())[0]
-    res["C"] = m.fitted_base_models_[id].best_params_["C"]
-    res["gamma"] = m.fitted_base_models_[id].best_params_["gamma"]
+    # id = list(m.fitted_base_models_.keys())[0]
+    # res["C"] = m.fitted_base_models_[id].best_params_["C"]
+    # res["gamma"] = m.fitted_base_models_[id].best_params_["gamma"]
     if type(model)==ppe.PPE_Classifier:
         res["regions"] = len(m.regions_) #.shape[0]
     else:
@@ -82,15 +85,16 @@ if __name__ == '__main__':
     dataDirLarge = "D:\\mblachnik\\datasets\\large"
     resultsDir = "Data\\tmp_results"
     protos = 15
-    script_n_jobs = 12
+    script_n_jobs = 30
 
-    #base_estimator = RandomForestClassifier(n_estimators=100, n_jobs=10)
     base_estimator = SVC(C=1, gamma='auto', cache_size=200)
     base_estimator = GridSearchCV(estimator=SVC(),
-                                  param_grid={'C': [0.01, 0.1 , 1, 10, 100],
+                                  param_grid={'C': [0.01, 1, 100],
                                               'gamma': [0.01, 0.1, 1, 10]},
                                   n_jobs=5,
                                   )
+    # base_estimator = RandomForestClassifier(n_estimators=100, n_jobs=10)
+    # base_estimator = Pipeline([("Scale",StandardScaler()),("PCA", PCA(n_components=None)), ("RF", base_estimator)])
     models = [
         # ("PE", ppe.PPE_Classifier(base_estimator=base_estimator,
         #                           type="pe",proto_selection={0:protos, 1:protos}, min_support=400, unbalanced_rate=0.05)),
@@ -98,25 +102,31 @@ if __name__ == '__main__':
         #                            type="ppe", proto_selection={0: protos, 1: protos}, min_support=400, unbalanced_rate=0.05)),
         ("PE",  ppe.PPE_Classifier(base_estimator=base_estimator,
                                    type="pe",
-                                   proto_selection=SimpleClusterCentroids(n_clusters=10),
-                                   min_support=200,
-                                   unbalanced_rate=0.01,
-                                   minimum_regions=2
+                                   proto_selection=SimpleClusterCentroids(n_clusters=20),
+                                   min_support=100,
+                                   unbalanced_rate=0.001,
+                                   minimum_regions=2,
+                                   n_jobs=5
                                    )),
-        ("PPE3", ppe.PPE_Classifier(base_estimator=base_estimator,
-                                    type="ppe3",
-                                    proto_selection=ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
-                                        sampling_strategy={0: 5, 1: 5}),
-                                    min_support=200,
-                                    minimum_regions=2,
-                                    prune_regions=False)),
+        # ("PPE3", ppe.PPE_Classifier(base_estimator=base_estimator,
+        #                             type="ppe3",
+        #                             proto_selection=ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
+        #                                 sampling_strategy={0: 25, 1: 25}),
+        #                             min_support=100,
+        #                             unbalanced_rate=0.01,
+        #                             minimum_regions=2,
+        #                             prune_regions=False,
+        #                             n_jobs=5)),
         ("PPE", ppe.PPE_Classifier(base_estimator=base_estimator,
-                                   type="ppe",
+                                   type="ppe2",
                                    proto_selection=ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
-                                       sampling_strategy={0: 5, 1: 5}),
-                                   min_support=200,
+                                        sampling_strategy={0: 10, 1: 10}),
+                                   min_support=1000,
                                    unbalanced_rate=0.01,
-                                   minimum_regions=2))
+                                   minimum_regions=2,
+                                   n_jobs=5)),
+        # ("RF", RandomForestClassifier()),
+        # ("PCA+RF", base_estimator),
         # ("EPPE",ppe.EPPE_Classifier(ppe_estimator=
         #                      ppe.PPE_Classifier(base_estimator=RandomForestClassifier(n_estimators=10),
         #                                         proto_selection={0:protos, 1:protos}), #Warning: Here it must be class 0,1 instead of -1,1 becouse VotingEnsemble use onehot label encodings which converts output labels into values [0,1]
@@ -132,19 +142,19 @@ if __name__ == '__main__':
                 # "Stagger1", #100% dokładności
                 # "BayesianNetworkGenerator_spambase",
                 #"BNG_sonar",
-        #(dataDirLarge,"codrnaNorm"),
-        #(dataDirLarge,"electricity-normalized"),
-        #(dataDirLarge,"covtype"),
-        #(dataDirLarge,"php89ntbG"),
+        (dataDirLarge,"codrnaNorm"),
+        (dataDirLarge,"electricity-normalized"),
+        (dataDirLarge,"covtype"),
+        (dataDirLarge,"php89ntbG"),
 
 
-        (dataDir, "banana"),
-        (dataDir, "coil2000"),
-        (dataDir, "magic"),
-        (dataDir, "phoneme"),
-        (dataDir, "ring"),
-        (dataDir, "spambase"),
-        (dataDir, "twonorm"),
+        # (dataDir, "banana"),
+        # #(dataDir, "coil2000"), #Mocno niezbalansowany
+        # (dataDir, "magic"),
+        # (dataDir, "phoneme"),
+        # (dataDir, "ring"),
+        # (dataDir, "spambase"),
+        # (dataDir, "twonorm"),
 
 
                  #"shuttle2"
