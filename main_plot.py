@@ -48,8 +48,12 @@ def plotData(x, y, label1, label2=None, colors='rgb', markers=['.', '.'], marker
 
 fName = "poly"
 df1 = pd.read_csv('Data/Results/train_regions.csv', sep=";")
+#df1 = pd.read_csv("Data/banana.csv", sep = ",")
+#df1.columns = ["a1","a2","Class"]
 # df2 = pd.read_csv('Data/Results/proto_regions.csv',sep=";")
-
+proto_type = "CC"
+#proto_type = "manual"
+#proto_type = "SAMPLE"
 df11 = df1.copy()
 # df1 = df1.sample(500,axis=0)
 
@@ -68,18 +72,23 @@ limy = (mi.a2, mx.a2)
 
 id1 = y == 1
 n = 2
-idx1 = df11[id1].sample(n=3).index
-idx2 = df11[~id1].sample(n=2).index
+if proto_type=="SAMPLE":
+    idx1 = df11[id1].sample(n=3,random_state=2001).index
+    idx2 = df11[~id1].sample(n=2,random_state=2001).index
 
-PX,PY = (pd.concat((df11.loc[idx1, ["a1", "a2"]], df11.loc[idx2, ["a1", "a2"]])),  # df2[["a1","a2"]]
-         pd.concat((df11.loc[idx1, ["Class"]],    df11.loc[idx2, ["Class"]])))  # df2[["a1","a2"]]
+    PX,PY = (pd.concat((df11.loc[idx1, ["a1", "a2"]], df11.loc[idx2, ["a1", "a2"]])),  # df2[["a1","a2"]]
+             pd.concat((df11.loc[idx1, ["Class"]],    df11.loc[idx2, ["Class"]])))  # df2[["a1","a2"]]
+elif proto_type=="CC":
+    PX,PY = ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
+                             sampling_strategy={0: 3, 1: 3}).fit_resample(X,y)
+    PY = pd.DataFrame(PY,columns=["Class"])
 
-# PX,PY = ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
-#                          sampling_strategy={0: 3, 1: 3}).fit_resample(X,y)
-# PX, PY =(pd.DataFrame([[0.99470783, 0.51770136],[0.02465749, 0.14812839],[0.61552881, 0.10683872],[0.16161304, 0.94875707],[0.75546858, 0.68521314]], columns=["a1","a2"]).reset_index(drop=True),
-#          pd.DataFrame([[ 1.],[ 1.],[ 1.],[0.],[0.]], columns=["Class"]).reset_index(drop=True))
+elif proto_type=="manual":
+    PX, PY =(pd.DataFrame([[0.99470783, 0.51770136],[0.02465749, 0.14812839],[0.61552881, 0.10683872],[0.16161304, 0.94875707],[0.75546858, 0.68521314]], columns=["a1","a2"]).reset_index(drop=True),
+             pd.DataFrame([[ 1.],[ 1.],[ 1.],[0.],[0.]], columns=["Class"]).reset_index(drop=True))
 
-ppe = ppelib.PPE3(proto=PX,
+
+ppe = ppelib.PPE(proto=PX,
                   proto_labels=PY,
                   unbalanced_rate=0.05,
                   min_support=10,
@@ -112,8 +121,8 @@ qcc = np.zeros((xyc.shape[0],1))
 for i,(k,v) in enumerate(qc.items()):
     qcc[v]=i
 
-regions = ppe.regions_inverted_indexs
-protos_id = np.array(sorted(set(sum(map(ppe.unpairCantor, regions), ()))))
+
+protos_id = np.array(sorted(set(sum(map(ppe.unpairCantor, ux_protoPairs), ()))))
 PX = pd.DataFrame(ppe.proto[protos_id,:],columns=["a1","a2"])
 PY = pd.DataFrame(ppe.proto_labels[protos_id,:], columns=["Class"])
 
@@ -142,10 +151,11 @@ plotData(df1.a1, df1.a2, label1=df1["Class"],
          markers=['o'], colors=cols2, markersize=4)
 plotData(PX.a1, PX.a2, PY.Class, markers=['*', 'o'], colors='rr', markersize=15)
 PX.reset_index(inplace=True, drop=True)
+protos_id_to_row = dict(zip(protos_id,range(len(protos_id)))) #Mapowanie proto_id na numer wiersza
 for pair in ux_protoPairs:
     i, j = ppe.unpairCantor(pair)
-    x = PX.loc[[i, j], "a1"]
-    y = PX.loc[[i, j], "a2"]
+    x = PX.loc[[protos_id_to_row[i], protos_id_to_row[j]], "a1"]
+    y = PX.loc[[protos_id_to_row[i], protos_id_to_row[j]], "a2"]
     plt.plot(x, y, 'r')
 ax = plt.gca()
 p = PX  # = df2[["a1","a2"]].values
