@@ -10,8 +10,10 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 from imblearn.under_sampling import ClusterCentroids
+from sklearn.tree import DecisionTreeClassifier
 
 from ppelib import ppe as ppelib
+from ppelib import classifiers as ppec
 from scipy.spatial import Voronoi, voronoi_plot_2d
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans
@@ -51,8 +53,9 @@ fName = "poly"
 df1 = pd.read_csv('Data/Results/train_regions.csv', sep=";")
 #df1 = pd.read_csv("Data/banana.csv", sep = ",")
 #df1.columns = ["a1","a2","Class"]
+
 # df2 = pd.read_csv('Data/Results/proto_regions.csv',sep=";")
-proto_type = "CC"
+proto_type = "CC_Banana"
 #proto_type = "manual"
 #proto_type = "SAMPLE"
 df11 = df1.copy()
@@ -74,29 +77,38 @@ limy = (mi.a2, mx.a2)
 
 id1 = y == 1
 n = 2
-if proto_type=="SAMPLE":
-    idx1 = df11[id1].sample(n=3,random_state=2001).index
-    idx2 = df11[~id1].sample(n=2,random_state=2001).index
 
-    PX,PY = (pd.concat((df11.loc[idx1, ["a1", "a2"]], df11.loc[idx2, ["a1", "a2"]])),  # df2[["a1","a2"]]
-             pd.concat((df11.loc[idx1, ["Class"]],    df11.loc[idx2, ["Class"]])))  # df2[["a1","a2"]]
-elif proto_type=="CC":
-    PX,PY = ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
-                             sampling_strategy={0: 3, 1: 3}).fit_resample(X,y)
-    PY = pd.DataFrame(PY,columns=["Class"])
+model : ppec.PPE_Classifier = ppec.PPE_Classifier(type="ppe2",
+                   base_estimator=DecisionTreeClassifier(max_depth=2),
+                   # proto_selection=ClusterCentroids(sampling_strategy={-1:5,1:5}),
+                   proto_selection=ClusterCentroids(sampling_strategy={0: 5, 1: 5}),
+                   unbalanced_rate=0.1,
+                   minimum_regions=2,
+                   min_support=100,
+                   n_jobs=6)
+model.fit(X,y)
+PX = model.proto_ensemble_.proto
+PY = model.proto_ensemble_.proto_labels
+# PX,PY = ClusterCentroids(estimator=KMeans(random_state=0, n_init=10),
+#                          sampling_strategy={0: 10, 1: 10}).fit_resample(X,y)
+PY = pd.DataFrame(PY,columns=["Class"])
 
-elif proto_type=="manual":
-    PX, PY =(pd.DataFrame([[0.99470783, 0.51770136],[0.02465749, 0.14812839],[0.61552881, 0.10683872],[0.16161304, 0.94875707],[0.75546858, 0.68521314]], columns=["a1","a2"]).reset_index(drop=True),
-             pd.DataFrame([[ 1.],[ 1.],[ 1.],[0.],[0.]], columns=["Class"]).reset_index(drop=True))
 
 
-ppe = ppelib.PPE(proto=PX,
-                  proto_labels=PY,
-                  unbalanced_rate=0.05,
-                  min_support=100,
-                  prune_regions=True,
-                  minimum_n_regions=1)
+# ppe = ppelib.PPE(proto=PX,
+#                   proto_labels=PY,
+#                   unbalanced_rate=0.05,
+#                   min_support=100,
+#                   prune_regions=True,
+#                   minimum_n_regions=1)
+# ppe = ppelib.PPE2(proto=PX,
+#                   proto_labels=PY,
+#                   unbalanced_rate=0.2,
+#                   min_support=400,
+#                   prune_regions=True,
+#                   minimum_n_regions=1)
 #    ppelib.PPE(P, PY,unbalanced_rate=0, min_support=1))
+ppe = model.proto_ensemble_
 regions = ppe.generate_regions(X, y)
 
 ux_protoPairs = list(regions.keys())
@@ -110,8 +122,8 @@ print("==========")
 
 q = ppe.assign_regions(X, ux_protoPairs)
 
-xlist = np.linspace(limx[0], limx[1], 100)
-ylist = np.linspace(limy[0], limy[1], 100)
+xlist = np.linspace(limx[0], limx[1], 200)
+ylist = np.linspace(limy[0], limy[1], 200)
 Xc, Yc = np.meshgrid(xlist, ylist)
 
 yc = np.reshape(Yc, (-1, 1))
@@ -126,7 +138,7 @@ for i,(k,v) in enumerate(qc.items()):
 
 protos_id = np.array(sorted(set(sum(map(ppe.unpairCantor, ux_protoPairs), ()))))
 PX = pd.DataFrame(ppe.proto[protos_id,:],columns=["a1","a2"])
-PY = pd.DataFrame(ppe.proto_labels[protos_id,:], columns=["Class"])
+PY = pd.DataFrame(ppe.proto_labels[protos_id], columns=["Class"])
 
 qcc = np.reshape(qcc, Xc.shape)
 
@@ -173,9 +185,10 @@ if do_voronoi:
                     show_points=False,
                     show_vertices=False)
 
-
-cp = plt.contourf(Xc, Yc, qcc, alpha=0.7, cmap="gist_ncar")  # colors=cols)
-#cp = plt.contour(Xc, Yc, qcc, alpha=0.7, color='k')  # colors=cols)
+dcc = model.predict(xyc)
+dcc = np.reshape(dcc, Xc.shape)
+cp = plt.contourf(Xc, Yc, dcc, alpha=0.7, cmap="gist_ncar")  # colors=cols)
+cp = plt.contour(Xc, Yc, qcc, alpha=0.7)  # colors=cols)
 # plt.colormap(hot)
 plt.xlim(limx)
 plt.ylim(limy)

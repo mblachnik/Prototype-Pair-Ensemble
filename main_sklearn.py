@@ -42,13 +42,13 @@ datasets = [
     (dataDirLarge,"shuttle2"),
     (dataDirLarge,"phpvcoG8S"),
 
-    # (dataDir, "banana"),
-    # (dataDir, "coil2000"),
-    # #(dataDir, "magic"),
-    # (dataDir, "phoneme"),
-    # (dataDir, "ring"),
-    # (dataDir, "spambase"),
-    # (dataDir, "twonorm"),
+    (dataDir, "banana"),
+    (dataDir, "coil2000"),
+    #(dataDir, "magic"),
+    (dataDir, "phoneme"),
+    (dataDir, "ring"),
+    (dataDir, "spambase"),
+    (dataDir, "twonorm"),
 
     # "shuttle2"
 ]
@@ -122,12 +122,12 @@ for max_depth in [3,4,5,6,7,10]:
         # elif (Xn.shape[1]>0):
         #     X = Xn
 
-        print("Fitting")
-        for model_name, model in models:
-            model.fit(X,y)
-            print(f"  Fitting {model_name}")
-            if type(model)==ppe.PPE_Classifier:
-                print(model.region_stats)
+        # print("Fitting")
+        # for model_name, model in models:
+        #     model.fit(X,y)
+        #     print(f"  Fitting {model_name}")
+        #     if type(model)==ppe.PPE_Classifier:
+        #         print(model.region_stats)
         #
         # print("Predicting")
         # for model_name, model in models:
