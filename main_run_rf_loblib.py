@@ -80,7 +80,7 @@ def gen_params(datasets,meta_columns, resultsDir):
     return params
 
 if __name__ == '__main__':
-    parallel = True
+    parallel = False
     dataDir = r'D:\mblachnik\datasets\Datasets\KeelNormCV'
     dataDirLarge = "D:\\mblachnik\\datasets\\large"
     resultsDir = "Data\\tmp_results"
