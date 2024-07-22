@@ -255,6 +255,9 @@ def random_feature_subsets(array, batch_size, random_state=1234):
 
 
 class RotationTreeClassifier(DecisionTreeClassifier):
+    """
+    The source code of RotationForest and RotationTreeClassifier was taken and addopted from
+    """
     def __init__(self,
                  n_features_per_subset=3,
                  rotation_algo='pca',
