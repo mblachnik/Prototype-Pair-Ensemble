@@ -175,37 +175,6 @@ if do_voronoi:
 
 
 cp = plt.contourf(Xc, Yc, qcc, alpha=0.7, cmap="gist_ncar")  # colors=cols)
-#cp = plt.contour(Xc, Yc, qcc, alpha=0.7, color='k')  # colors=cols)
-# plt.colormap(hot)
 plt.xlim(limx)
 plt.ylim(limy)
 plt.show()
-# plt.savefig(f'pic/regions_{fName}.png', bbox_inches='tight')
-
-
-# plotData(df1.a1, df1.a2, , markers=['o','o'], colors='rr')
-# plt.figure(2,figsize=(width,height))
-# plt.clf()
-# plotData(df11.a1, df11.a2, df11.Class, label2=df11.ID_Proto_Pair, markers=['o','o'],colors=colors,markersize=10)
-# plotData(df2.a1, df2.a2, df2.Class, markers=['*','o'], colors='rr',markersize=10)
-# plt.savefig(f"pic/data_{fName}.png", bbox_inches='tight')
-# ax = plt.axis()
-# plt.figure(1)
-# plt.axis(ax)
-# plt.show()
-
-
-# for pair in protoPairs:
-#     i,j = unpair(pair)
-#     x = df2.loc[[i,j],"a1"]
-#     y = df2.loc[[i,j],"a2"]
-#     plt.plot(x,y,'b')
-# ax = plt.gca()
-# p = df2[["a1","a2"]].values
-# p = np.vstack([p, [[0, 1],[1, 0]]])
-# vor = Voronoi(p)
-# voronoi_plot_2d(vor,
-#                 ax=ax,
-#                 show_points=False,
-#                 show_vertices=False)
-# plotData(df1.a1, df1.a2, , markers=['o','o'], colors='rr')

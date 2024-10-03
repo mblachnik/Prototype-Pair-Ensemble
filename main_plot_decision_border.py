@@ -113,19 +113,6 @@ PY = pd.DataFrame(PY,columns=["Class"])
 
 
 
-# ppe = ppelib.PPE(proto=PX,
-#                   proto_labels=PY,
-#                   unbalanced_rate=0.05,
-#                   min_support=100,
-#                   prune_regions=True,
-#                   minimum_n_regions=1)
-# ppe = ppelib.PPE2(proto=PX,
-#                   proto_labels=PY,
-#                   unbalanced_rate=0.2,
-#                   min_support=400,
-#                   prune_regions=True,
-#                   minimum_n_regions=1)
-#    ppelib.PPE(P, PY,unbalanced_rate=0, min_support=1))
 ppe = model.proto_ensemble_
 regions = ppe.generate_regions(X, y)
 
@@ -246,37 +233,3 @@ cp = plt.contourf(Xc, Yc, dcc_ref, alpha=0.7, cmap="Dark2")#"gist_ncar")  # c# o
 plt.scatter(X[:,0], X[:,1], c=y,marker='o',  s=30, cmap="Paired")
 if soSave:
     plt.savefig(f'pic/local_tree_scatter.png', bbox_inches='tight')
-
-
-#plt.show(block=False)
-#if soSave:
-# plt.savefig(f'pic/regions_{fName}.png', bbox_inches='tight')
-
-
-# plotData(df1.a1, df1.a2, , markers=['o','o'], colors='rr')
-# plt.figure(2,figsize=(width,height))
-# plt.clf()
-# plotData(df11.a1, df11.a2, df11.Class, label2=df11.ID_Proto_Pair, markers=['o','o'],colors=colors,markersize=10)
-# plotData(df2.a1, df2.a2, df2.Class, markers=['*','o'], colors='rr',markersize=10)
-#if soSave:
-# plt.savefig(f"pic/data_{fName}.png", bbox_inches='tight')
-# ax = plt.axis()
-# plt.figure(1)
-# plt.axis(ax)
-# plt.show()
-
-
-# for pair in protoPairs:
-#     i,j = unpair(pair)
-#     x = df2.loc[[i,j],"a1"]
-#     y = df2.loc[[i,j],"a2"]
-#     plt.plot(x,y,'b')
-# ax = plt.gca()
-# p = df2[["a1","a2"]].values
-# p = np.vstack([p, [[0, 1],[1, 0]]])
-# vor = Voronoi(p)
-# voronoi_plot_2d(vor,
-#                 ax=ax,
-#                 show_points=False,
-#                 show_vertices=False)
-# plotData(df1.a1, df1.a2, , markers=['o','o'], colors='rr')
