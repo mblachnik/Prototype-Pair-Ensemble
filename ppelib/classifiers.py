@@ -25,7 +25,9 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
                  minimum_regions=1,
                  proto_selection={0: 10, 1: 10},
                  prune_regions=True,
-                 n_jobs=None):
+                 n_jobs=None,
+                 metric:str =  'sqeuclidean'
+                 ):
         """
         Constructor for the PPE_ensemble class.
         The idea of this algorithm is presented in (to appear)
@@ -48,6 +50,7 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
         self.minimum_regions = minimum_regions = 2
         self.prune_regions = prune_regions
         self.n_jobs = n_jobs
+        self.metric = metric
 
     def _initialize_ppe(self, X, y):
         if type(self.proto_selection) == dict:
@@ -65,16 +68,19 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
 
         if self.type == "ppe":
             ppe = PPE(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support,
-                      minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions)
+                      minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions,
+                      metric=self.metric)
         elif self.type == "ppe2":
             ppe = PPE2(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support,
-                       minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions)
+                       minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions,
+                       metric=self.metric)
         elif self.type == "ppe3":
             ppe = PPE3(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support,
-                       minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions)
+                       minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions,
+                       metric=self.metric)
         elif self.type == "pe":
             ppe = PE(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support, prune_regions=True,
-                     minimum_n_regions=self.minimum_regions)
+                     minimum_n_regions=self.minimum_regions,metric=self.metric)
         else:
             raise ValueError("Unknown PPE type. Only (ppe,ppe2,pe) are avaliable")
 

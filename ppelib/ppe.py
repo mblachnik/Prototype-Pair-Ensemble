@@ -22,13 +22,16 @@ class PPEBase:
     It devides the dataset into regions as well as later identify the closes region when making predictions
 
     """
-    def __init__(self, proto, proto_labels, unbalanced_rate=0.1, min_support=10, prune_regions = True, minimum_n_regions=1):
+    def __init__(self, proto, proto_labels, unbalanced_rate:float=0.1, min_support:int=10, prune_regions:bool = True, minimum_n_regions:int =1, metric:str =  'sqeuclidean'):
         """
 
         :param proto: Prototypes position
         :param proto_labels: Prototypes labels
         :param unbalanced_rate: a rate for aggregating regions it is calculated as min(c1/c2,c2/c1) so it shows the ration of the minority to majority class within region
-        :param min_support: minimum number of samples in each region
+        :param min_support: minimum number of samples in a single region
+        :param prune_regions: if true then the procedure of region pruning would be executed during training
+        :param minimum_n_regions: minumum number of regions. If a region do not fulfill the condition it would be aggregated to other region, but only when the minimum number of regions is satisfied
+        :param metric: distance metric used in the calculations. by default this is squared euclidien distance. For more details see   scipy.spatial.distance.cdist
         """
         self.ux = None
         if isinstance(proto, pd.DataFrame):
@@ -42,6 +45,7 @@ class PPEBase:
         self.prune_regions = prune_regions
         self.region_stats = None
         self.minimum_n_regions = minimum_n_regions
+        self.metric =  metric
 
     @staticmethod
     def unpairCantor(z):
@@ -161,15 +165,20 @@ class PPE(PPEBase):
 
     """
 
-    def __init__(self, proto, proto_labels, unbalanced_rate=0.2, min_support=500, prune_regions=True, minimum_n_regions=1):
+    def __init__(self, proto, proto_labels, unbalanced_rate:float=0.2, min_support:int=500, prune_regions:bool=True,
+                 minimum_n_regions:int=1, metric:str =  'sqeuclidean'):
         """
 
         :param proto: Prototypes position
         :param proto_labels: Prototypes labels
         :param unbalanced_rate: a rate for aggregating regions it is calculated as min(c1/c2,c2/c1) so it shows the ration of the minority to majority class within region
         :param min_support: minimum number of samples in each region
+        :param prune_regions: if true then the procedure of region pruning would be executed during training
+        :param minimum_n_regions: minumum number of regions. If a region do not fulfill the condition it would be aggregated to other region, but only when the minimum number of regions is satisfied
+        :param metric: distance metric used in the calculations. by default this is squared euclidien distance. For more details see   scipy.spatial.distance.cdist
         """
-        super().__init__(proto, proto_labels, unbalanced_rate=unbalanced_rate, min_support= min_support, prune_regions=prune_regions, minimum_n_regions=minimum_n_regions)
+        super().__init__(proto, proto_labels, unbalanced_rate=unbalanced_rate, min_support= min_support,
+                         prune_regions=prune_regions, minimum_n_regions=minimum_n_regions, metric=metric)
         self.regions_inverted_index = {}
 
 
@@ -193,7 +202,7 @@ class PPE(PPEBase):
         regions = self._check_regions(regions)
 
         if dist is None:
-            dist = cdist(X, self.proto, metric="sqeuclidean")
+            dist = cdist(X, self.proto, metric=self.metric)
         ds = np.zeros((dist.shape[0],
                        regions.shape[0]))  # Allocate memory to store the results - distances to prototypes constituting given pair
         for i,p in enumerate(regions):
@@ -215,7 +224,7 @@ class PPE(PPEBase):
         idPos = np.squeeze(PY == ux[0])  # Samples from first class
         idNeg = np.squeeze(PY == ux[1])  # Samples from second class
         # for each sample in X it gets nearest samples from both classes
-        dist = cdist(X, P, metric="sqeuclidean")
+        dist = cdist(X, P, metric=self.metric)
         dPos = dist[:, idPos]
         dNeg = dist[:, idNeg]
 
@@ -254,7 +263,7 @@ class PPE(PPEBase):
         self.ux = ux  # Get labels
         X, y = self._prepare_data(X, y)
         ux_pairs = self._get_possible_pairs(X, y)
-        dist = cdist(X, self.proto, metric="sqeuclidean")
+        dist = cdist(X, self.proto, metric=self.metric)
         self._update_inverted_index(ux_pairs)
         pairs = self._generate_regions_assign(X, ux_pairs, dist)
         stats = self._getRegionStats(X, y, pairs)
@@ -290,15 +299,20 @@ class PPE2(PPE):
 
     """
 
-    def __init__(self, proto, proto_labels, unbalanced_rate=0.2, min_support=500, prune_regions=True, minimum_n_regions=1):
+    def __init__(self, proto, proto_labels, unbalanced_rate:float=0.2, min_support:int=500, prune_regions:bool=True,
+                 minimum_n_regions:int=1, metric:str =  'sqeuclidean'):
         """
 
         :param proto: Prototypes position
         :param proto_labels: Prototypes labels
         :param unbalanced_rate: a rate for aggregating regions it is calculated as min(c1/c2,c2/c1) so it shows the ration of the minority to majority class within region
         :param min_support: minimum number of samples in each region
+        :param prune_regions: if true then the procedure of region pruning would be executed during training
+        :param minimum_n_regions: minumum number of regions. If a region do not fulfill the condition it would be aggregated to other region, but only when the minimum number of regions is satisfied
+        :param metric: distance metric used in the calculations. by default this is squared euclidien distance. For more details see   scipy.spatial.distance.cdist
         """
-        super().__init__(proto, proto_labels, unbalanced_rate=unbalanced_rate, min_support= min_support, prune_regions=prune_regions, minimum_n_regions=minimum_n_regions)
+        super().__init__(proto, proto_labels, unbalanced_rate=unbalanced_rate, min_support= min_support,
+                         prune_regions=prune_regions, minimum_n_regions=minimum_n_regions, metric=metric)
 
     def _get_possible_pairs(self,X,y) -> np.ndarray:
         ux = self.ux
@@ -307,7 +321,7 @@ class PPE2(PPE):
         # indexes of samples from given class
         idPos = np.squeeze(PY == ux[0])  # Samples from first class
         idNeg = np.squeeze(PY == ux[1])  # Samples from second class
-        dist = cdist(P, P, metric="sqeuclidean")
+        dist = cdist(P, P, metric=self.metric)
 
         idPosI = np.nonzero(np.squeeze(idPos))[0]  # Convert binary index into numeric one for positive samples
         idNegI = np.nonzero(np.squeeze(idNeg))[0]
@@ -344,15 +358,20 @@ class PPE3(PPE):
 
     """
 
-    def __init__(self, proto, proto_labels, unbalanced_rate=0.2, min_support=500, prune_regions=True, minimum_n_regions=1):
+    def __init__(self, proto, proto_labels, unbalanced_rate:float=0.2, min_support:int=500, prune_regions:bool=True,
+                 minimum_n_regions:int=1, metric:str =  'sqeuclidean'):
         """
 
         :param proto: Prototypes position
         :param proto_labels: Prototypes labels
         :param unbalanced_rate: a rate for aggregating regions it is calculated as min(c1/c2,c2/c1) so it shows the ration of the minority to majority class within region
         :param min_support: minimum number of samples in each region
+        :param prune_regions: if true then the procedure of region pruning would be executed during training
+        :param minimum_n_regions: minumum number of regions. If a region do not fulfill the condition it would be aggregated to other region, but only when the minimum number of regions is satisfied
+        :param metric: distance metric used in the calculations. by default this is squared euclidien distance. For more details see   scipy.spatial.distance.cdist
         """
-        super().__init__(proto, proto_labels, unbalanced_rate=unbalanced_rate, min_support= min_support, prune_regions=prune_regions, minimum_n_regions=minimum_n_regions)
+        super().__init__(proto, proto_labels, unbalanced_rate=unbalanced_rate, min_support= min_support,
+                         prune_regions=prune_regions, minimum_n_regions=minimum_n_regions, metric=metric)
 
     def _get_possible_pairs(self,X,y) -> np.ndarray:
         ux = self.ux
@@ -361,7 +380,7 @@ class PPE3(PPE):
         # indexes of samples from given class
         idPos = np.squeeze(PY == ux[0])  # Samples from first class
         idNeg = np.squeeze(PY == ux[1])  # Samples from second class
-        dist = cdist(P, P, metric="sqeuclidean")
+        dist = cdist(P, P, metric=self.metric)
 
         idPosI = np.nonzero(np.squeeze(idPos))[0]  # Convert binary index into numeric one for positive samples
         idNegI = np.nonzero(np.squeeze(idNeg))[0]
@@ -405,7 +424,7 @@ class PPE3(PPE):
             raise TypeError("Incorrect type of regions input")
 
         if dist is None:
-            dist = cdist(X, self.proto, metric="sqeuclidean")
+            dist = cdist(X, self.proto, metric=self.metric)
         protos_id = np.array(sorted(set(sum(map(self.unpairCantor,regions),()))))
 
         minid = np.argmin(dist[:,protos_id],axis=1)
@@ -431,7 +450,7 @@ class PPE3(PPE):
             raise TypeError("Incorrect type of regions input")
         index = list(self.regions_inverted_index.keys())
         if dist is None:
-            dist = cdist(X, self.proto, metric="sqeuclidean")
+            dist = cdist(X, self.proto, metric=self.metric)
         protos_id = np.array(sorted(set(sum(map(self.unpairCantor, regions), ()))))
 
         minid = np.argmin(dist[:,protos_id],axis=1)
@@ -457,8 +476,15 @@ class PPE3(PPE):
 
 
 class PE(PPEBase):
-    def __init__(self, proto, proto_labels, unbalanced_rate=0.01, min_support=10, prune_regions = False, minimum_n_regions=1):
-        super().__init__(proto, proto_labels, unbalanced_rate=unbalanced_rate, min_support=min_support, prune_regions=prune_regions, minimum_n_regions=minimum_n_regions)
+    def __init__(self, proto, proto_labels, unbalanced_rate:float=0.01, min_support:int=10, prune_regions:bool = False,
+                 minimum_n_regions:int=1, metric:str =  'sqeuclidean'):
+        """
+        :param prune_regions: if true then the procedure of region pruning would be executed during training
+        :param minimum_n_regions: minumum number of regions. If a region do not fulfill the condition it would be aggregated to other region, but only when the minimum number of regions is satisfied
+        :param metric: distance metric used in the calculations. by default this is squared euclidien distance. For more details see   scipy.spatial.distance.cdist
+        """
+        super().__init__(proto, proto_labels, unbalanced_rate=unbalanced_rate, min_support=min_support,
+                         prune_regions=prune_regions, minimum_n_regions=minimum_n_regions, metric=metric )
 
 
     def assign_regions(self, X, regions: np.ndarray|list, dist:np.ndarray = None) -> dict:
@@ -470,7 +496,7 @@ class PE(PPEBase):
         :return: the nearest region for each row in X
         """
         if dist is None:
-            dist = cdist(X, self.proto[regions, :], metric="sqeuclidean")
+            dist = cdist(X, self.proto[regions, :], metric=self.metric)
         else:
             dist = dist[:, regions]
         idp = np.argmin(dist, axis=1)  # Find smallest distances ang get index of this nearest pairs
@@ -496,7 +522,7 @@ class PE(PPEBase):
             raise ValueError("The algorithm assums binary classification, but the number of prototype classes is != 2")
         # for each sample in X it gets nearest samples from both classes
         dist = cdist(X, self.proto,
-                     metric="sqeuclidean")  # Calculate distance from X to the prototypes from positive class
+                     metric=self.metric)  # Calculate distance from X to the prototypes from positive class
         sample2region = np.argmin(dist, axis=1)  # Get index of the Nearest prototype positive
         ux_regions = list(np.unique(sample2region))
         regions={}

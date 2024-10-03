@@ -10,8 +10,10 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 from imblearn.under_sampling import ClusterCentroids
-from sklearn.tree import DecisionTreeClassifier
-
+from sklearn.tree import DecisionTreeClassifier, export_text, plot_tree
+from sklearn.preprocessing import StandardScaler
+import sklearn.cluster as cc
+#import sklearn_extra.cluster as cce
 from ppelib import ppe as ppelib
 from ppelib import classifiers as ppec
 from scipy.spatial import Voronoi, voronoi_plot_2d
@@ -19,10 +21,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans
 import addcopyfighandler
 
-mpl.use("QtAgg")
+#mpl.use("QtAgg")
 
-def plotData(x, y, label1, label2=None, colors='rgb', markers=['.', '.'], markersize=5):
-    print(df1.a1.shape)
+def plotData(x, y, label1, label2=None, colors='rgb', markers=['.', '.'], markersize=3):
+    #print(df1.a1.shape)
     uxs = np.unique(label1)
     lux = len(uxs)
     lux2 = 1
@@ -51,7 +53,9 @@ def plotData(x, y, label1, label2=None, colors='rgb', markers=['.', '.'], marker
 
 fName = "poly"
 df1 = pd.read_csv('Data/Results/train_regions.csv', sep=";")
-#df1 = pd.read_csv("Data/banana.csv", sep = ",")
+df1 = pd.read_csv("Data/banana.csv", sep = ",")
+df1 = pd.read_csv("Data/sin.csv", sep = ",")
+df1 = pd.read_csv("Data/4_clust.csv", sep = ",")
 #df1.columns = ["a1","a2","Class"]
 
 # df2 = pd.read_csv('Data/Results/proto_regions.csv',sep=";")
@@ -60,6 +64,7 @@ proto_type = "CC_Banana"
 #proto_type = "SAMPLE"
 df11 = df1.copy()
 do_voronoi = False
+soSave = False
 # df1 = df1.sample(500,axis=0)
 
 width, height = 8, 6
@@ -70,22 +75,35 @@ X = df11[["a1", "a2"]]
 df11.loc[df11['Class']==-1, 'Class']=0
 y = df11[['Class']].values
 
+pr = StandardScaler()
+
+X = pr.fit_transform(X)
+
 mi = np.min(X, axis=0)
 mx = np.max(X, axis=0)
-limx = (mi.a1, mx.a1)
-limy = (mi.a2, mx.a2)
+#limx = (mi.a1, mx.a1)
+#limy = (mi.a2, mx.a2)
+
+limx = (mi[0], mx[1])
+limy = (mi[0], mx[1])
+
 
 id1 = y == 1
 n = 2
-
-model : ppec.PPE_Classifier = ppec.PPE_Classifier(type="ppe2",
-                   base_estimator=DecisionTreeClassifier(max_depth=2),
+metric = "sqeuclidean"#"squeuclidian"#'cityblock'
+model : ppec.PPE_Classifier = ppec.PPE_Classifier(
+                   #type="pe",
+                   type="ppe2",
+                   base_estimator=DecisionTreeClassifier(max_depth=1,min_samples_leaf=3),
                    # proto_selection=ClusterCentroids(sampling_strategy={-1:5,1:5}),
-                   proto_selection=ClusterCentroids(sampling_strategy={0: 5, 1: 5}),
-                   unbalanced_rate=0.1,
+                   proto_selection=ClusterCentroids(sampling_strategy={0: 4, 1: 2}),#, estimator=cce.KMedoids(init="build")),
+                   #proto_selection=ClusterCentroids(sampling_strategy={0: 6, 1: 4}),#, estimator=cce.KMedoids(init="build")),
+                   unbalanced_rate=0.01,
                    minimum_regions=2,
                    min_support=100,
-                   n_jobs=6)
+                   n_jobs=6,
+                   metric= metric #'chebyshev'
+                    )
 model.fit(X,y)
 PX = model.proto_ensemble_.proto
 PY = model.proto_ensemble_.proto_labels
@@ -145,12 +163,25 @@ qcc = np.reshape(qcc, Xc.shape)
 n = len(ux_protoPairs)
 n += 2  # Reserwujemy dodatkowe dwa kolory na klasy
 
-colors = mpl.colormaps[
-    # 'tab20'
-    "gist_ncar"
-].resampled(n)
 
 #%%
+#plotData(X[:,0], X[:,1], label1=df1["Class"],
+#         markers=['o'], colors=cols2, markersize=1)
+#plotData(PX.a1, PX.a2, PY.Class, markers=['*', 'o'], colors='rr', markersize=15)
+PX.reset_index(inplace=True, drop=True)
+protos_id_to_row = dict(zip(protos_id,range(len(protos_id)))) #Mapowanie proto_id na numer wiersza
+
+dcc = model.predict(xyc)
+dcc = np.reshape(dcc, Xc.shape)
+p = PX
+
+#%%
+colors = mpl.colormaps[
+    # 'tab20'
+    #"gist_ncar"
+    "Set1"
+].resampled(n)
+
 cols = colors(range(n + 1))
 
 
@@ -162,21 +193,15 @@ cols2[1][1]=0.5
 # colors2 = cols[0:n-1]
 # colors = cols[2:n]
 
-
 plt.figure(1, figsize=(width, height))
 plt.clf()
-plotData(df1.a1, df1.a2, label1=df1["Class"],
-         markers=['o'], colors=cols2, markersize=4)
-plotData(PX.a1, PX.a2, PY.Class, markers=['*', 'o'], colors='rr', markersize=15)
-PX.reset_index(inplace=True, drop=True)
-protos_id_to_row = dict(zip(protos_id,range(len(protos_id)))) #Mapowanie proto_id na numer wiersza
 for pair in ux_protoPairs:
     i, j = ppe.unpairCantor(pair)
-    x = PX.loc[[protos_id_to_row[i], protos_id_to_row[j]], "a1"]
-    y = PX.loc[[protos_id_to_row[i], protos_id_to_row[j]], "a2"]
-    plt.plot(x, y, 'r')
+    x1 = PX.loc[[protos_id_to_row[i], protos_id_to_row[j]], "a1"]
+    x2 = PX.loc[[protos_id_to_row[i], protos_id_to_row[j]], "a2"]
+    plt.plot(x1, x2, 'r')
 ax = plt.gca()
-p = PX  # = df2[["a1","a2"]].values
+ # = df2[["a1","a2"]].values
 # p = np.vstack([p, [[0, 1],[1, 0]]])
 if do_voronoi:
     vor = Voronoi(p)
@@ -185,14 +210,46 @@ if do_voronoi:
                     show_points=False,
                     show_vertices=False)
 
-dcc = model.predict(xyc)
-dcc = np.reshape(dcc, Xc.shape)
-cp = plt.contourf(Xc, Yc, dcc, alpha=0.7, cmap="gist_ncar")  # colors=cols)
+cp = plt.contourf(Xc, Yc, dcc, alpha=0.7, cmap="Dark2")#"gist_ncar")  # colors=cols)
 cp = plt.contour(Xc, Yc, qcc, alpha=0.7)  # colors=cols)
+
+plt.scatter(X[:,0], X[:,1], c=y,marker='o',  s=30, cmap="Paired")
+idC1 = PY.Class==1
+idC2 = PY.Class!=1
+plt.scatter(PX.a1[idC1], PX.a2[idC1], c='r', marker='*', s=200)
+plt.scatter(PX.a1[idC2], PX.a2[idC2], c='r', marker='o', s=100)
+
 # plt.colormap(hot)
 plt.xlim(limx)
 plt.ylim(limy)
-plt.show()
+if soSave:
+    plt.savefig(f'pic/local_ppd_scatter.png', bbox_inches='tight')
+
+for i,id in enumerate(model.fitted_base_models_):
+    plt.figure(10+i,clear=True)
+    plot_tree(model.fitted_base_models_[id])
+    if soSave:
+        plt.savefig(f'pic/local_ppd_tree_{i}.png', bbox_inches='tight')
+
+#%%
+plt.figure(20,clear=True)
+model_ref = DecisionTreeClassifier(max_depth=5, min_samples_leaf=5)
+model_ref.fit(X, y)
+plot_tree(model_ref)
+if soSave:
+    plt.savefig(f'pic/local_tree_single.png', bbox_inches='tight')
+
+plt.figure(50, clear=True)
+dcc_ref = model_ref.predict(xyc)
+dcc_ref = np.reshape(dcc_ref, Xc.shape)
+cp = plt.contourf(Xc, Yc, dcc_ref, alpha=0.7, cmap="Dark2")#"gist_ncar")  # c# olors=cols)
+plt.scatter(X[:,0], X[:,1], c=y,marker='o',  s=30, cmap="Paired")
+if soSave:
+    plt.savefig(f'pic/local_tree_scatter.png', bbox_inches='tight')
+
+
+#plt.show(block=False)
+#if soSave:
 # plt.savefig(f'pic/regions_{fName}.png', bbox_inches='tight')
 
 
@@ -201,6 +258,7 @@ plt.show()
 # plt.clf()
 # plotData(df11.a1, df11.a2, df11.Class, label2=df11.ID_Proto_Pair, markers=['o','o'],colors=colors,markersize=10)
 # plotData(df2.a1, df2.a2, df2.Class, markers=['*','o'], colors='rr',markersize=10)
+#if soSave:
 # plt.savefig(f"pic/data_{fName}.png", bbox_inches='tight')
 # ax = plt.axis()
 # plt.figure(1)
