@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import numpy as np
 import sklearn
+import time
 from sklearn.utils.estimator_checks import check_estimator
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier
@@ -12,9 +13,10 @@ from sklearn.utils.validation import check_array, check_is_fitted
 from sklearn.utils.multiclass import unique_labels
 from sklearn.utils import resample, gen_batches, check_random_state, check_X_y
 from sklearn.decomposition import PCA
+from sklearn.dummy import DummyClassifier
 
 from imblearn.base import SamplerMixin
-from ppelib.ppe import PPE, PPE2, PPE3, PE
+from ppelib.ppe import PPE, PPE2, PPE3, PE, PPE2_1, PPE2_2, PPE2_3
 from scipy.spatial.distance import cdist
 
 from joblib import Parallel, delayed
@@ -25,15 +27,20 @@ import copy
 
 
 class PPE_Classifier(BaseEstimator, ClassifierMixin):
+    ppe_init_time:float = 0.0
+    ppe_fit_time:float = 0.0
+    ppe_region_time:float = 0.0
+
     def __init__(self,
                  base_estimator=RandomForestClassifier(),
-                 type="ppe",
+                 ppe_type="ppe",
                  unbalanced_rate=0.3,
                  min_support=500,
                  minimum_regions=1,
                  proto_selection={0: 10, 1: 10},
                  prune_regions=True,
-                 n_jobs=None):
+                 n_jobs=None,
+                 window_size = 0.1):
         """
         Constructor for the PPE_ensemble class.
         The idea of this algorithm is presented in (to appear)
@@ -52,12 +59,14 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
         self.unbalanced_rate = unbalanced_rate
         self.min_support = min_support
         self.proto_selection = proto_selection
-        self.type = type
+        self.ppe_type = ppe_type
         self.minimum_regions = minimum_regions = 2
         self.prune_regions = prune_regions
         self.n_jobs = n_jobs
+        self.window_size = window_size
 
     def _initialize_ppe(self, X, y):
+        time_start = time.time()
         if type(self.proto_selection) == dict:
             idx_all = np.zeros((y.shape[0]), dtype=bool)
             for label, n_samples in self.proto_selection.items():
@@ -68,24 +77,34 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
             yp = y[idx_all]  # Y of selected prototypes
         elif issubclass(type(self.proto_selection), SamplerMixin):
             Xp, yp = self.proto_selection.fit_resample(X, y)
+            # print(f"{Xp}: {yp}")
         else:
             raise ValueError("Unknown prototype selection method")
 
-        if self.type == "ppe":
+        if self.ppe_type == "ppe":
             ppe = PPE(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support,
                       minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions)
-        elif self.type == "ppe2":
+        elif self.ppe_type == "ppe2":
             ppe = PPE2(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support,
                        minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions)
-        elif self.type == "ppe3":
+        elif self.ppe_type == "ppe2_1":
+            ppe = PPE2_1(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support,
+                       minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions)
+        elif self.ppe_type == "ppe2_2":
+            ppe = PPE2_2(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support,
+                       minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions, window_size = self.window_size)
+        elif self.ppe_type == "ppe2_3":
+            ppe = PPE2_3(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support,
+                       minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions, window_size = self.window_size)
+        elif self.ppe_type == "ppe3":
             ppe = PPE3(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support,
                        minimum_n_regions=self.minimum_regions, prune_regions=self.prune_regions)
-        elif self.type == "pe":
+        elif self.ppe_type == "pe":
             ppe = PE(Xp, yp, unbalanced_rate=self.unbalanced_rate, min_support=self.min_support, prune_regions=True,
                      minimum_n_regions=self.minimum_regions)
         else:
             raise ValueError("Unknown PPE type. Only (ppe,ppe2,pe) are avaliable")
-
+        self.ppe_init_time = time.time() - time_start
         return ppe
 
     def fit(self, X: pd.DataFrame | np.ndarray, y: pd.DataFrame | np.ndarray):
@@ -102,21 +121,30 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
 
         ppe = self._initialize_ppe(X, y)
         self.proto_ensemble_ = ppe
-
-        regions = ppe.generate_regions(X, y)
-        # pairs = ppe.assign_regions(X,regions)
+        time_start = time.time()
+        self.regions = ppe.generate_regions(X, y,True)
+        self.ppe_region_time = time.time() - time_start
+        # print(f"X:{len(y)}, R:{len(self.regions)}")
+        # for i in self.regions.keys():
+        #     print(f"{i}) {sum(self.regions[i])}")
+        # pairs = ppe.assign_regions(X,self.regions)
         # _ux_regions, ux_regions_counts = np.unique(pairs, return_counts=True)
         # assert np.all(np.sort(ux_regions) == np.sort(_ux_regions))
-        self.regions_ = list(regions.keys())
+        self.regions_ = list(self.regions.keys())
         self.region_stats = ppe.region_stats
         self.fitted_base_models_ = {}
         modelsInputData = []
-        for region in regions:
-            id = regions[region]
+        time_start = time.time()
+        for region in self.regions:
+            id = self.regions[region]
             if np.sum(id) == 0: continue
             Xm = X[id, :]
             ym = y[id]
             model = copy.deepcopy(self.base_estimator)
+            if(self.ppe_type == "pe" and len(set(y[id])) <2):
+                model = DummyClassifier(strategy="constant",constant=y[id][0])
+            if(self.ppe_type == "pe" and (list(y[id]).count(0) < 5 or list(y[id]).count(1) < 5)):
+                model = DummyClassifier(strategy="most_frequent")
             modelsInputData.append((region, Xm, ym, model))
 
         if self.n_jobs is not None:
@@ -126,6 +154,7 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
                 self.fitted_base_models_ = {region: model for region, model in res_all}
         else:
             self.fitted_base_models_ = {region: model.fit(Xm, ym) for region, Xm, ym, model in modelsInputData}
+        self.ppe_fit_time = time.time() - time_start
         return self
 
     def predict(self, X: pd.DataFrame | np.ndarray):
@@ -147,6 +176,43 @@ class PPE_Classifier(BaseEstimator, ClassifierMixin):
                 model = self.fitted_base_models_[region]  # Take the classifier associated to region "pair"
                 yp[id] = model.predict(Xm)  # Make prediction using the classifier assigned to region "pair"
         return yp
+    
+    def plot_prediction(self, X: pd.DataFrame | np.ndarray, y, fname, train:bool=False):
+        """
+        Method used for predicting the output of the model. For each sample in X it determines the nearest region out of
+         the existing region. And then based on the index of existing region it takes the classifier and performs prediction
+        :param X: samples to be classified
+        :return: predicted labels
+        """
+        check_is_fitted(self)
+        X = check_array(X)
+        model = self.proto_ensemble_
+        from plot_module import plot_trained
+        plot_trained(model,X,y,fname,train)
+        
+    def plot_prediction_borders(self, X: pd.DataFrame | np.ndarray, y, fname, train:bool=False):
+        """
+        Method used for predicting the output of the model. For each sample in X it determines the nearest region out of
+         the existing region. And then based on the index of existing region it takes the classifier and performs prediction
+        :param X: samples to be classified
+        :return: predicted labels
+        """
+        check_is_fitted(self)
+        X = check_array(X)
+        model = self.proto_ensemble_
+        from plot_decision_border import plot_data
+        plot_data(self,X,y,fname)
+        # regions_ = self.regions_
+        # sample2region = self.proto_ensemble_.assign_regions(X, regions_)  # For each sample in X get its nearest region
+        # yp = np.zeros(X.shape[0], dtype=int)  # Allocate memory
+        # for region in regions_:  # Iterate over reginos
+        #     id = sample2region[region]  # Get samples which belong to region pair
+        #     Xm = X[id, :]
+        #     if Xm.size:
+        #         model = self.fitted_base_models_[region]  # Take the classifier associated to region "pair"
+        #         yp[id] = model.predict(Xm)  # Make prediction using the classifier assigned to region "pair"
+        #         plot_trained(model,Xm,y,"aaa.png")
+        # return yp
 
 
 class EPPE_Classifier(VotingClassifier):
