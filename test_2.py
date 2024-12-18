@@ -44,13 +44,14 @@ def get_selector(selector:str)->InstanceSelectionMixin:
 # folder = 'Y:\\Datasets\\datasets_ppe\\'
 # folder = "Y:\Datasets\Datasets\KeelNormCV"
 # folder = "Y:\Datasets\Datasets\MetaIS\corrected\Filtered by CCIS"
-folder = "Y:\Datasets\Datasets\KeelNorm"
+#folder = "Y:\Datasets\Datasets\KeelNorm"
+folder = "Data"
 #"D:\\mblachnik\\datasets\\Datasets\\KeelNormCV"
 #'D:\\mblachnik\\datasets\\large'
 resFolder = "Data/Results/"
 files = [
     # ["Agrawal1",100],#9e5
-    # ["Banana",100],#5e3
+    ["Banana",100],#5e3
     # ["banana",500],#5e3
     # ["twonorm",500],#6,6e3
     # ["spambase",500],#4e3
@@ -58,7 +59,7 @@ files = [
     # ["ring",500],#6,6e3
     # ["coil2000",500],#8,8e3
     # ["magic",500],#1,7e4
-    ["electricity-normalized",1500],#4e4
+    # ["electricity-normalized",1500],#4e4
     # ["shuttle2",100],#5,2e4
     # ["codrnaNorm",100],#4,4e5
     # ["covtype",100],#5,3e5
@@ -100,8 +101,11 @@ for selector in sel:
                 if not os.path.isdir(dName):
                     os.mkdir(f"{resFolder}\\{model_name}\\{file}")
                 for i in range(1, fold_number +1):
-                    tr = pd.read_csv(f"{folder}\\{file}\\{file}-{fold_number}-{i}tra.dat",sep=";")
-                    te = pd.read_csv(f"{folder}\\{file}\\{file}-{fold_number}-{i}tst.dat",sep=";")
+                    #tr = pd.read_csv(f"{folder}\\{file}\\{file}-{fold_number}-{i}tra.dat",sep=";")
+                    #te = pd.read_csv(f"{folder}\\{file}\\{file}-{fold_number}-{i}tst.dat",sep=";")
+                    tr = pd.read_csv(f"{folder}\\{file}.csv",sep=";")
+                    te = pd.read_csv(f"{folder}\\{file}.csv",sep=";")
+
                     cols = [col for col in tr.columns if col not in ["LABEL", "id"]]
                     Xtr = tr.loc[:, cols].values
                     ytr = tr.loc[:, "LABEL"].values
@@ -180,7 +184,7 @@ for selector in sel:
 
                     resdf = pd.DataFrame(res)
             
-                    resdf.to_csv(f"{resFolder}\\{model_name}\\{file}\\{file}-{fold_number}-{i}tra.dat_CSVM_NonEnsemble_tmp.log",index=False,sep=";")
+                    resdf.to_csv(f"{resFolder}\\{model_name}\\{file}-{i}.dat.log",index=False,sep=";")
                     # res_stat = pd.DataFrame(resampler.region_stats)
                     # res_stat.to_csv(f"{resFolder}\\{model_name}\\{file}\\{file}-{fold_number}-{i}tra.dat_CSVM_NonEnsemble_region_stat.log",index=False,sep=";")
             except Exception as e:

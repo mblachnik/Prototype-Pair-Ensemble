@@ -91,20 +91,20 @@ datasets = [
     # "BayesianNetworkGenerator_spambase",
     # "BNG_sonar",
 
-    (dataDir,"codrnaNorm"),
-    (dataDir,"electricity-normalized"),
-    (dataDir,"covtype"),
-    (dataDir, "phpvcoG8S"),
-    (dataDir, "Agrawal1"),
-    (dataDir, "shuttle2"),
+    # (dataDir,"codrnaNorm"),
+    # (dataDir,"electricity-normalized"),
+    # (dataDir,"covtype"),
+    # (dataDir, "phpvcoG8S"),
+    # (dataDir, "Agrawal1"),
+    # (dataDir, "shuttle2"),
     (dataDir, "banana"),
-    (dataDir, "coil2000"),  # Mocno niezbalansowany
-    (dataDir, "magic"),
-    (dataDir, "phoneme"),
-    (dataDir, "ring"),
-    (dataDir, "spambase"),
-    (dataDir, "twonorm"),
-    (dataDir, "titanic"),
+    # (dataDir, "coil2000"),  # Mocno niezbalansowany
+    # (dataDir, "magic"),
+    # (dataDir, "phoneme"),
+    # (dataDir, "ring"),
+    # (dataDir, "spambase"),
+    # (dataDir, "twonorm"),
+    # (dataDir, "titanic"),
 
     # "shuttle2"
 ]

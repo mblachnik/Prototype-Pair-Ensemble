@@ -97,29 +97,32 @@ class ppeResample(BaseUnderSampler):
         self.regions_ = list(regions.keys())
         self.region_stats = ppe.region_stats
         self.fitted_base_models_ = {}
-        modelsInputData = []
+        modelsInputData = {}
         for region in regions:
             id = regions[region]
             if np.sum(id) == 0: continue
             Xm = X[id, :]
             ym = y[id]
             selector = copy.deepcopy(self.base_estimator)
-            modelsInputData.append((region, Xm, ym, selector))
+            modelsInputData[region] = (Xm, ym, selector)
         
         if self.n_jobs is not None:
             parrTrainFun = lambda region, Xm, ym, selector: (region, selector.fit(Xm, ym))
             with Parallel(n_jobs=self.n_jobs, verbose=3) as parallel:
-                res_all = parallel(delayed(parrTrainFun)(*input) for input in modelsInputData)
+                res_all = parallel(delayed(parrTrainFun)(region, Xm, ym, selector) for region, (Xm, ym, selector) in modelsInputData)
                 self.fitted_base_models_ = {region: model for region, model in res_all}
         else:
             self.fitted_base_models_ = {region: model.fit(Xm, ym) for region, Xm, ym, model in modelsInputData}
 
-        for selector in self.fitted_base_models_.values():
+        for region,selector in self.fitted_base_models_.items():
             # selector.fit(X,y)
             idx = selector.sample_indices_
-            X1,y1 = X[idx], y[idx]
+            Xm, ym, model = modelsInputData[region]
+            X1,y1 = Xm[idx,:], ym[idx]
             X_selected.extend(X1)
             y_selected.extend(y1)
+        X_selected = np.vstack(X_selected)
+        y_selected = np.vstack(y_selected)
         return (X_selected,y_selected)
     
     def __str__(self) -> str:
