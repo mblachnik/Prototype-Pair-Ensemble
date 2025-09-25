@@ -29,6 +29,15 @@ from getParam import getCcpAlpha, getMaxDepth, getNPrototypes
 import mlflow.data
 import os
 
+def login():
+    if os.environ.get("MLFLOW_TRACKING_USERNAME",None) is None or os.environ.get("MLFLOW_TRACKING_PASSWORD",None) is None:
+        user = input("USER: ")
+        password = input("PASSWORD: ")
+        os.environ["MLFLOW_TRACKING_USERNAME"] = user.strip()
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = password.strip()
+
+login()
+
 # folder = "Y:/Datasets/Datasets/KeelNorm"
 # resFolder = "Data/Results/"
 # files = ["banana","electricity-normalized"]
