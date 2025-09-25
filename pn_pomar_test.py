@@ -14,10 +14,6 @@ from utils.plot_utils import get_plot_regions_centres, get_plot, get_prototypes_
 from utils.mlflow_utils import save_fig_as_artefact, save_pandas_as_artefact
 from utils.ppe_utils import get_proto_info, get_region_info
 
-# #Usunac w env
-os.environ["MLFLOW_TRACKING_USERNAME"] = "admin"
-os.environ["MLFLOW_TRACKING_PASSWORD"] = "passwor"
-
 TEST_RUN = True
 APD_RUN = True
 MDS_RUN = False
