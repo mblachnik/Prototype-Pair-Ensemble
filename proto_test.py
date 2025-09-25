@@ -2,12 +2,14 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import mlflow
+import tempfile
 
 from sklearn.datasets import load_iris
 from sklearn.preprocessing import LabelEncoder
 from sklvq import GLVQ
 from ppelib.validationSolver import CustomSteepestGradientDescent
 from imblearn.under_sampling import ClusterCentroids
+from utils.mlflow_utils import save_fig_as_artefact
 
 def login():
     if os.environ.get("MLFLOW_TRACKING_USERNAME",None) is None or os.environ.get("MLFLOW_TRACKING_PASSWORD",None) is None:
@@ -98,6 +100,8 @@ X = data.loc[:, cols].values
 y = data.loc[:, "LABEL"].values
 y = ohe.fit_transform(y)
 
+tmp_dir = tempfile.mkdtemp()
+
 os.environ["MLFLOW_TRACKING_USERNAME"] = "admin"
 os.environ["MLFLOW_TRACKING_PASSWORD"] = "passwor"
 login()
@@ -113,14 +117,17 @@ with mlflow.start_run(run_name=TEST_NAME):
     #KNN
     X_knn, y_knn = knn.fit_resample(X, y)
     knn_fig = get_fig(X_knn, y_knn, "ClusterCentroids", X,y, cols)
+    save_fig_as_artefact(knn_fig, "KNN",tmp_dir)
 
     #LVQ
     lvq.fit(X, y)
     X_lvq, y_lvq = lvq.prototypes_, lvq.prototypes_labels_
-    get_fig(X_lvq, y_lvq, "LVQ", X,y, cols)
-
+    lvq_fig = get_fig(X_lvq, y_lvq, "LVQ", X,y, cols)
+    save_fig_as_artefact(lvq_fig, "LVQ",tmp_dir)
     #LVQ EARLYSTOPING
     lvq_early_stoping.fit(X, y)
     X_lvq_es, y_lvq_es = lvq_early_stoping.prototypes_, lvq_early_stoping.prototypes_labels_
-    get_fig(X_lvq_es, y_lvq_es, "LVQ EARLY STOPING", X,y, cols)
-    get_fig_all([X_knn,X_lvq,X_lvq_es],[y_knn,y_lvq,y_lvq_es],["knn","lvq","lvq_es"],"Prototypes", X,y, cols)
+    lvq_es_fig = get_fig(X_lvq_es, y_lvq_es, "LVQ EARLY STOPING", X,y, cols)
+    save_fig_as_artefact(lvq_es_fig, "LVQ_ES",tmp_dir)
+    all_fig = get_fig_all([X_knn,X_lvq,X_lvq_es],[y_knn,y_lvq,y_lvq_es],["knn","lvq","lvq_es"],"Prototypes", X,y, cols)
+    save_fig_as_artefact(all_fig, "ALL",tmp_dir)
