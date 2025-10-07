@@ -240,8 +240,8 @@ class PPE_ClassifierScaler(PPE_Classifier):
         for region in regions_:  # Iterate over reginos
             id = sample2region[region]  # Get samples which belong to region pair
             Xm = X[id, :]
-            Xm = self.scaler.inverse_transform(Xm)
-            if Xm.size:
+            if len(Xm)>0:
+                Xm = self.scaler.inverse_transform(Xm)
                 model = self.fitted_base_models_[region]  # Take the classifier associated to region "pair"
                 yp[id] = model.predict(Xm)  # Make prediction using the classifier assigned to region "pair"
         return yp

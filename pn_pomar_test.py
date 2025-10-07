@@ -1,3 +1,4 @@
+#%%
 from sklearn.tree import DecisionTreeClassifier, export_text, plot_tree
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -10,19 +11,21 @@ import numpy as np
 from ppelib import classifiers as  ppe
 from mlflow.data.pandas_dataset import from_pandas
 from imblearn.under_sampling import ClusterCentroids
+
+from ppelib.sampler.glvq_sampler import GLVQ_Sampler
 from utils.plot_utils import get_plot_regions_centres, get_plot, get_prototypes_plot_MDS
 from utils.mlflow_utils import save_fig_as_artefact, save_pandas_as_artefact
 from utils.ppe_utils import get_proto_info, get_region_info
 
-TEST_RUN = True
+TEST_RUN = False
 APD_RUN = True
 MDS_RUN = False
 DRAW_DT_PLOT = False
 
 CCP = [0,0.005,0.01,0.02,0.03]
-N_PROTO = [3,5,7,10]
-DT_MAX_DEPTH = [3,5,7,10]
-EXP_NAME= "DT_Rules6"
+N_PROTO = [5]
+DT_MAX_DEPTH = [3,4,5,6,7,8,10]
+EXP_NAME= "DT_RulesX"
 
 def login():
     if os.environ.get("MLFLOW_TRACKING_USERNAME",None) is None or os.environ.get("MLFLOW_TRACKING_PASSWORD",None) is None:
@@ -93,10 +96,15 @@ for ccp in CCP:
                         base_estimator= clf,
                         min_support=100,
                         unbalanced_rate= 0.1,
-                        proto_selection= ClusterCentroids(sampling_strategy={0: n_proto, 1: n_proto}),
+                        proto_selection=GLVQ_Sampler(prototype_n_per_class=np.array([n_proto,n_proto]),
+                                                     solver_params={"step_size": 0.1,
+                                                                    "max_runs": 200,
+                                                                    "batch_size": 128,})
+                        #ClusterCentroids(sampling_strategy={0: n_proto, 1: n_proto}),
                     )
                     mlflow.log_param("n_prototypes",n_proto)
                 mlflow.log_params(estimator.get_params())
+                #%%
                 estimator.fit(X_train, y_train)
 
                 if APD_RUN:
