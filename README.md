@@ -5,3 +5,4 @@ Scripts description:
   * pn_proto_ppe_sel.py - script for model selection using PPE + LVQ for the pump failure prediction. It is parallelized version
   * pn_proto_ppe_simple.py - script for runing simple experiments with PPE or decisiontrees. It eturns performance on the given model both using CV and test set
   * visualization.py - a simple library for data plotting and dimensionality reductio using PCA, UMAP, t-SNE
+  * lvq_visualise_test - a simple script drawing plots with position of prototypes in all fitting steps of lvq algorithm
